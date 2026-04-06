@@ -1,0 +1,1798 @@
+---
+title: "optimal_classification_matrix_total_variation"
+author: "Simrita Singh"
+date: "7/18/2024"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+source("../utils/header.R")
+```
+
+```{r}
+source("../utils/cost_functions.R")
+```
+
+```{r}
+cost1=10
+cost2=1
+rho=0.7
+p1=1/10
+p2=9/10
+lambda1=p1
+lambda2=p2
+service1=(lambda1+lambda2)/rho
+service2=(lambda1+lambda2)/rho
+lamda=c(lambda1,lambda2)
+service=c(service1,service2)
+costs=c(cost1,cost2)
+ml_algo=rbind(c(1,0),c(0,1))
+net_cost_2(ml_algo,lamda,service,costs)
+```
+```{r}
+library(distr)
+```
+# sample size with 1000, 10000, 100000
+
+```{r}
+## Sampling types 1 and 2 given their probabilities p1 and p2
+## Construct the distribution object.
+myMix <- UnivarMixingDistribution(DiscreteDistribution(1), 
+                                DiscreteDistribution(2),
+                                  mixCoeff=c(p1,p2))
+## ... and then a function for sampling random variates from it
+rmyMix <- r(myMix)
+
+## Sample a million random variates, and plot (part of) their histogram
+x <- rmyMix(1000)
+hist(x, col="grey", main="")
+```
+#Sampling features based on the sampled type
+```{r}
+sample_var=function(x){
+  if(x==1){
+    return(runif(1,0,3/2))
+  }else if(x==2)
+    {
+    return(runif(1,-1,1))
+  }
+}
+sample_var=Vectorize(sample_var)
+```
+
+
+```{r}
+data=cbind(Type=x,X=sample_var(x))
+data=as.data.frame(data)
+hist(data$X, col="grey", main="")
+
+```
+```{r}
+names(data)
+```
+```{r}
+data$Type=as.numeric(sign(1-data$Type)+1)
+```
+
+
+```{r}
+fit=glm(Type~X,data,family="binomial")
+```
+
+```{r}
+#summary(fit)
+```
+
+```{r}
+#plot(fit$fitted.values~data$X)
+```
+
+```{r}
+classifier_predictions=fit$fitted.values
+```
+
+
+```{r}
+estimated_cost_thresh=function(t){
+  p11=sum(classifier_predictions*0.5*(1+sign(classifier_predictions-t)))/sum(classifier_predictions)
+  p21=sum((1-classifier_predictions)*0.5*(1+sign(classifier_predictions-t)))/sum(1-classifier_predictions)
+  p12=1-p11
+  p22=1-p21
+  ml_algo=rbind(c(p11,p12),c(p21,p22))
+  return(net_cost_2(ml_algo,lamda,service,costs))
+}
+estimated_cost_thresh=Vectorize(estimated_cost_thresh)
+```
+
+
+
+```{r}
+thresholds=seq(0,1,0.001)
+min(estimated_cost_thresh(thresholds))
+t=thresholds[which.min(estimated_cost_thresh(thresholds))]
+t
+```
+
+
+# The realized classification probabilities
+
+```{r}
+fit$coefficients
+```
+
+
+
+
+```{r}
+fit$coefficients[1]
+fit$coefficients[2]
+```
+
+```{r}
+#(inv.logit(t)-fit$coefficients[1])
+```
+
+
+```{r}
+(-log(1/t-1)-fit$coefficients[1])/fit$coefficients[2]
+```
+
+```{r}
+qlogis(t)-fit$coefficients[1]
+```
+
+
+```{r}
+x_c=(qlogis(t)-fit$coefficients[1])/fit$coefficients[2]
+x_c
+```
+
+```{r}
+p11=1-2*x_c/3
+p21=1-(1+x_c)/2
+p11
+p21
+
+```
+
+
+
+```{r}
+optim(0.5,estimated_cost_thresh,lower=0,upper=1,method = "Brent")
+```
+
+```{r}
+log(thresholds[which.min(estimated_cost_thresh(thresholds))]/(1-thresholds[which.min(estimated_cost_thresh(thresholds))]))
+```
+
+```{r}
+fit$coefficients
+fit$coefficients[1]
+fit$coefficients[2]
+```
+
+
+
+```{r}
+(log(thresholds[which.min(estimated_cost_thresh(thresholds))]/(1-thresholds[which.min(estimated_cost_thresh(thresholds))]))-fit$coefficients[1])/fit$coefficients[2]
+```
+
+
+```{r}
+estimated_cost_direct=function(par){
+  beta_0=par[1]
+  beta_1=par[2]
+  p11=sum(data$Type*0.5*(1+sign(beta_0+beta_1*data$X)))/sum(data$Type)
+  p21=sum((1-data$Type)*0.5*(1+sign(beta_0+beta_1*data$X)))/sum(1-data$Type)
+  p12=1-p11
+  p22=1-p21
+  ml_algo=rbind(c(p11,p12),c(p21,p22))
+  return(net_cost_2(ml_algo,lamda,service,costs))
+}
+
+```
+
+```{r}
+optim(par=c(fit$coefficients[1],fit$coefficients[2]),fn=estimated_cost_direct)
+par=optim(par=c(fit$coefficients[1],fit$coefficients[2]),fn=estimated_cost_direct)$par
+```
+
+```{r}
+x_c=-par[1]/par[2]
+x_c
+```
+
+```{r}
+p11=1-2*x_c/3
+p21=1-(1+x_c)/2
+p11
+p21
+```
+
+
+
+
+
+### This assumes the type first is a logistic regression classifier obtained via MLE estimates
+
+##### Running the Experiment 25 times ######
+
+
+```{r}
+source("../utils/cost_functions.R")
+source("../utils/header.R")
+library(distr)
+```
+
+
+
+```{r}
+cost1=10
+cost2=1
+rho=0.7
+p1=1/10
+p2=9/10
+lambda1=p1
+lambda2=p2
+service1=(lambda1+lambda2)/rho
+service2=(lambda1+lambda2)/rho
+service1
+service2
+ml_algo=rbind(c(1,0),c(0,1))
+lamda=c(lambda1,lambda2)
+service=c(service1,service2)
+costs=c(cost1,cost2)
+sample_size=10000
+```
+
+```{r}
+pt_11=vector()
+pt_21=vector()
+pd_11=vector()
+pd_21=vector()
+wait_type1_typefirst <- vector()
+wait_type2_typefirst <- vector()
+wait_type1_direct <- vector()
+wait_type2_direct <- vector()
+
+for(i in 1:25){
+myMix <- UnivarMixingDistribution(DiscreteDistribution(1), 
+                                DiscreteDistribution(2),
+                                  mixCoeff=c(p1,p2))
+rmyMix <- r(myMix)
+x <- rmyMix(sample_size)
+#hist(x, col="grey", main="")
+sample_var=function(x){
+  if(x==1){
+    return(runif(1,0,3/2))
+  }else if(x==2)
+    {
+    return(runif(1,-1,1))
+  }
+}
+sample_var=Vectorize(sample_var)
+data=cbind(Type=x,X=sample_var(x))
+data=as.data.frame(data)
+data$Type=as.numeric(sign(1-data$Type)+1)
+fit=glm(Type~X,data,family="binomial")
+classifier_predictions=fit$fitted.values
+estimated_cost_thresh=function(t){
+  p11=sum(classifier_predictions*0.5*(1+sign(classifier_predictions-t)))/sum(classifier_predictions)
+  p21=sum((1-classifier_predictions)*0.5*(1+sign(classifier_predictions-t)))/sum(1-classifier_predictions)
+  p12=1-p11
+  p22=1-p21
+  ml_algo=rbind(c(p11,p12),c(p21,p22))
+  return(net_cost_2(ml_algo,lamda,service,costs))
+}
+estimated_cost_thresh=Vectorize(estimated_cost_thresh)
+thresholds=seq(0,1,0.001)
+min(estimated_cost_thresh(thresholds))
+t=thresholds[which.min(estimated_cost_thresh(thresholds))]
+x_c=(qlogis(t)-fit$coefficients[1])/fit$coefficients[2]
+p11=1-2*x_c/3
+p21=1-(1+x_c)/2
+pt_11[i]=p11
+pt_21[i]=p21
+estimated_cost_direct=function(par){
+  beta_0=par[1]
+  beta_1=par[2]
+  p11=sum(data$Type*0.5*(1+sign(beta_0+beta_1*data$X)))/sum(data$Type)
+  p21=sum((1-data$Type)*0.5*(1+sign(beta_0+beta_1*data$X)))/sum(1-data$Type)
+  p12=1-p11
+  p22=1-p21
+  ml_algo=rbind(c(p11,p12),c(p21,p22))
+  return(net_cost_2(ml_algo,lamda,service,costs))
+}
+optim(par=c(fit$coefficients[1],fit$coefficients[2]),fn=estimated_cost_direct)
+par=optim(par=c(fit$coefficients[1],fit$coefficients[2]),fn=estimated_cost_direct)$par
+x_c=-par[1]/par[2]
+p11=1-2*x_c/3
+p21=1-(1+x_c)/2
+pd_11[i]=p11
+pd_21[i]=p21
+# After getting ml_algo for type-first
+ml_algo_tf=rbind(c(pt_11[i],1-pt_11[i]),c(pt_21[i],1-pt_21[i]))
+priority_tf <- priority_sequence(ml_algo_tf, lamda, service, costs)
+wait_type1_typefirst[i] <- wait_k(1,ml_algo_tf, lamda, service, costs, priority_tf)
+wait_type2_typefirst[i] <- wait_k(2,ml_algo_tf, lamda, service, costs, priority_tf)
+# After getting ml_algo for direct
+ml_algo_direct=rbind(c(pd_11[i],1-pd_11[i]),c(pd_21[i],1-pd_21[i]))
+priority_direct <- priority_sequence(ml_algo_direct, lamda, service, costs)
+wait_type1_direct[i] <- wait_k(1, ml_algo_direct, lamda, service, costs, priority_direct)
+wait_type2_direct[i] <- wait_k(2, ml_algo_direct, lamda, service, costs, priority_direct)
+}
+```
+
+
+```{r}
+# Type-First
+mean_wait_t1_tf <- mean(wait_type1_typefirst)
+se_wait_t1_tf   <- sd(wait_type1_typefirst) / sqrt(length(wait_type1_typefirst))
+print(c(mean_wait_t1_tf,se_wait_t1_tf ))
+mean_wait_t2_tf <- mean(wait_type2_typefirst)
+se_wait_t2_tf   <- sd(wait_type2_typefirst) / sqrt(length(wait_type2_typefirst))
+print(c(mean_wait_t2_tf,se_wait_t2_tf ))
+# Direct
+mean_wait_t1_d <- mean(wait_type1_direct)
+se_wait_t1_d   <- sd(wait_type1_direct) / sqrt(length(wait_type1_direct))
+print(c(mean_wait_t1_d,se_wait_t1_d ))
+mean_wait_t2_d <- mean(wait_type2_direct)
+se_wait_t2_d   <- sd(wait_type2_direct) / sqrt(length(wait_type2_direct))
+print(c(mean_wait_t2_d,se_wait_t2_d ))
+```
+
+
+
+
+
+```{r}
+# Type-First
+mean_pt11 <- mean(pt_11)
+se_pt11   <- sd(pt_11) / sqrt(length(pt_11))
+
+mean_pt21 <- mean(pt_21)
+se_pt21   <- sd(pt_21) / sqrt(length(pt_21))
+
+# Direct
+mean_pd11 <- mean(pd_11)
+se_pd11   <- sd(pd_11) / sqrt(length(pd_11))
+
+mean_pd21 <- mean(pd_21)
+se_pd21   <- sd(pd_21) / sqrt(length(pd_21))
+
+```
+
+```{r}
+install.packages("FNN")
+library(FNN)
+```
+
+```{r}
+# ---------------------------
+# FIXED FULL R CODE
+# ---------------------------
+
+# Initialize result holder
+results_all <- data.frame()
+
+# Set constants
+p1 <- 1/10
+p2 <- 9/10
+sample_size <- 10000
+cost1 <- 10
+cost2 <- 1
+rho <- 0.7
+lambda1 <- p1
+lambda2 <- p2
+lamda <- c(lambda1, lambda2)
+service1 <- (lambda1 + lambda2) / rho
+service2 <- (lambda1 + lambda2) / rho
+service <- c(service1, service2)
+costs <- c(cost1, cost2)
+
+# Load required libraries
+library(FNN)
+
+# Helper functions
+phi <- function(x, mu, sd) dnorm(x, mu, sd)
+u <- function(x, a, b) {
+  if (b - a <= 0) return(rep(0, length(x)))
+  ifelse(x >= a & x <= b, 1 / (b - a), 0)
+}
+
+evaluate_classifier <- function(queue1, type, lamda, service, costs, method_name) {
+  p11 <- replace_na(mean(queue1[type == 1] == 1),0)
+  p21 <-replace_na(mean(queue1[type == 0] == 1),0)
+  ml_algo <- matrix(c(p11, 1 - p11, p21, 1 - p21), nrow = 2, byrow = TRUE)
+  priority <- priority_sequence(ml_algo, lamda, service, costs)
+  wait1 <- p11*wait_k(1, ml_algo, lamda, service, costs, priority)+(1-p11)*wait_k(2, ml_algo, lamda, service, costs, priority)
+  wait2 <- p21*wait_k(1, ml_algo, lamda, service, costs, priority)+(1-p21)*wait_k(2, ml_algo, lamda, service, costs, priority)
+
+  return(data.frame(
+    method = method_name,
+    P11 = p11,
+    P21 = p21,
+    Wait1 = wait1,
+    Wait2 = wait2
+  ))
+}
+
+evaluate_type_first_classifier <- function(t1_vals, type, lamda, service, costs, method_name = "method") {
+  if (all(is.na(t1_vals)) || length(t1_vals) == 0) {
+    warning(paste("Skipping method:", method_name, "due to invalid t1_vals"))
+    return(data.frame(method = method_name, P11 = NA, P21 = NA, Wait1 = NA, Wait2 = NA))
+  }
+ type=data$Type
+  thresholds <- seq(0.000000001, 1, 0.001)
+  # Here for estimating the cost function we don't use the actual type, instead we use the predicted type posteriors
+  cost_fn <- function(t) {
+    queue1 <- ifelse(t1_vals >= t, 1, 2)
+    ml_algo <- matrix(0, 2, 2)
+    ml_algo[1,1] <-sum(t1_vals*as.numeric(queue1 == 1))/sum(t1_vals)
+    ml_algo[1,2] <- 1 - ml_algo[1,1]
+    ml_algo[2,1] <- sum((1-t1_vals)*as.numeric(queue1 == 1))/sum(1-t1_vals)
+    ml_algo[2,2] <- 1 - ml_algo[2,1]
+    net_cost_2(ml_algo, lamda, service, costs)
+  }
+
+  costs_vec <- suppressWarnings(Vectorize(cost_fn)(thresholds))
+  if (all(is.infinite(costs_vec))) {
+    warning(paste("All costs are Inf for method:", method_name))
+    return(data.frame(method = method_name, P11 = NA, P21 = NA, Wait1 = NA, Wait2 = NA))
+  }
+
+  t_opt <- thresholds[which.min(costs_vec)]
+  queue1 <- ifelse(t1_vals >= t_opt, 1, 2)
+  evaluate_classifier(queue1, type, lamda, service, costs, method_name)
+}
+
+get_knn_probs <- function(test_x, train_x, train_y, k) {
+  neighbors <- FNN::get.knnx(data = matrix(train_x), query = matrix(test_x), k = k)
+  apply(neighbors$nn.index, 1, function(idx) mean(train_y[idx] == 1))
+}
+
+# Main loop
+set.seed(1200)
+for (i in c(1)) {
+  n1 <- round(sample_size * p1)
+  n2 <- sample_size - n1
+  x <- c(rep(1, n1), rep(2, n2))
+  sample_var <- Vectorize(function(t) if (t == 1) runif(1, 0, 3/2) else runif(1, -1, 1))
+  data <- data.frame(Type = as.numeric(sign(1 - x) + 1), X = sample_var(x))
+
+  # 1. MLE Logistic
+  fit_mle <- glm(Type ~ X, data = data, family = "binomial")
+  t1_vals <- predict(fit_mle, type = "response")
+  type=data$Type
+  results_all <- rbind(results_all, evaluate_type_first_classifier(t1_vals, data$Type, lamda, service, costs, "MLE Logistic"))
+
+  # 2. Bayes Gaussian
+  mu1 <- mean(data$X[data$Type == 1]); mu2 <- mean(data$X[data$Type == 0])
+  sd1 <- sd(data$X[data$Type == 1]); if (is.na(sd1) || sd1 == 0) sd1 <- 1e-6
+  sd2 <- sd(data$X[data$Type == 0]); if (is.na(sd2) || sd2 == 0) sd2 <- 1e-6
+  t1_vals <- (p1 * phi(data$X, mu1, sd1)) / (p1 * phi(data$X, mu1, sd1) + p2 * phi(data$X, mu2, sd2))
+  results_all <- rbind(results_all, evaluate_type_first_classifier(t1_vals, data$Type, lamda, service, costs, "Bayes Gaussian"))
+  print(results_all)
+  # 3. Bayes Uniform
+  a1 <- min(data$X[data$Type == 1]); b1 <- max(data$X[data$Type == 1])
+  a2 <- min(data$X[data$Type == 0]); b2 <- max(data$X[data$Type == 0])
+  t1_vals <- (p1 * u(data$X, a1, b1)) / (p1 * u(data$X, a1, b1) + p2 * u(data$X, a2, b2))
+  results_all <- rbind(results_all, evaluate_type_first_classifier(t1_vals, data$Type, lamda, service, costs, "Bayes Uniform"))
+  print(results_all)
+  # 4. MoM Gaussian
+  var1 <- var(data$X[data$Type == 1]); var2 <- var(data$X[data$Type == 0])
+  sd1 <- sqrt(var1); if (is.na(sd1) || sd1 == 0) sd1 <- 1e-6
+  sd2 <- sqrt(var2); if (is.na(sd2) || sd2 == 0) sd2 <- 1e-6
+  t1_vals <- (p1 * phi(data$X, mu1, sd1)) / (p1 * phi(data$X, mu1, sd1) + p2 * phi(data$X, mu2, sd2))
+  results_all <- rbind(results_all, evaluate_type_first_classifier(t1_vals, data$Type, lamda, service, costs, "MoM Gaussian"))
+  print(results_all)
+  # 5. MoM Uniform
+  a1 <- mu1 - sqrt(3 * var1); b1 <- mu1 + sqrt(3 * var1)
+  a2 <- mu2 - sqrt(3 * var2); b2 <- mu2 + sqrt(3 * var2)
+  t1_vals <- (p1 * u(data$X, a1, b1)) / (p1 * u(data$X, a1, b1) + p2 * u(data$X, a2, b2))
+  t1_vals <- replace_na(t1_vals,0)
+  results_all <- rbind(results_all, evaluate_type_first_classifier(t1_vals, data$Type, lamda, service, costs, "MoM Uniform"))
+  #print(results_all)
+  
+  n1 <- round(sample_size * p1)
+  n2 <- sample_size - n1
+  x <- c(rep(1, n1), rep(2, n2))
+  sample_var <- Vectorize(function(t) if (t == 1) runif(1, 0, 3/2) else runif(1, -1, 1))
+  data_test <- data.frame(Type = as.numeric(sign(1 - x) + 1), X = sample_var(x))
+  
+  # 6. kNN (k=10)
+  t1_vals_knn10 <- get_knn_probs(data_test$X, data$X, data$Type, 10)
+  results_all <- rbind(results_all, evaluate_type_first_classifier(t1_vals_knn10, data$Type, lamda, service, costs, "kNN-10"))
+
+  # 7. kNN (k=100)
+  t1_vals_knn100 <- get_knn_probs(data_test$X, data$X, data$Type, 100)
+  results_all <- rbind(results_all, evaluate_type_first_classifier(t1_vals_knn100, data$Type, lamda, service, costs, "kNN-100"))
+
+  # 8. Direct Logistic
+  direct_cost <- function(par) {
+    beta0 <- par[1]; beta1 <- par[2]
+    decision <- ifelse((beta0 + beta1 * data$X) >= 0, 1, 2)
+    ml_algo <- matrix(0, 2, 2)
+    ml_algo[1,1] <- mean(decision[data$Type == 1] == 1)
+    ml_algo[1,2] <- 1 - ml_algo[1,1]
+    ml_algo[2,1] <- mean(decision[data$Type == 0] == 1)
+    ml_algo[2,2] <- 1 - ml_algo[2,1]
+    net_cost_2(ml_algo, lamda, service, costs)
+  }
+
+  par_opt <- optim(c(0.000000001, 0.99999999999999), fn = direct_cost)$par
+  direct_queue <- ifelse(par_opt[1] + par_opt[2] * data$X >= 0, 1, 2)
+  results_all <- rbind(results_all, evaluate_classifier(direct_queue, data$Type, lamda, service, costs, "Direct Logistic"))
+}
+
+# View final results
+print(results_all)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+# ---------------------------
+# FIXED FULL R CODE
+# ---------------------------
+
+# Initialize result holder
+results_all <- data.frame()
+
+# Set constants
+p1 <- 1/10
+p2 <- 9/10
+sample_size <- 10000
+cost1 <- 10
+cost2 <- 1
+rho <- 0.7
+lambda1 <- p1
+lambda2 <- p2
+lamda <- c(lambda1, lambda2)
+service1 <- (lambda1 + lambda2) / rho
+service2 <- (lambda1 + lambda2) / rho
+service <- c(service1, service2)
+costs <- c(cost1, cost2)
+
+# Load required libraries
+library(FNN)
+
+# Helper functions
+phi <- function(x, mu, sd) dnorm(x, mu, sd)
+u <- function(x, a, b) {
+  if (b - a <= 0) return(rep(0, length(x)))
+  ifelse(x >= a & x <= b, 1 / (b - a), 0)
+}
+
+evaluate_classifier <- function(queue1, type, lamda, service, costs, method_name) {
+  p11 <- replace_na(mean(queue1[type == 1] == 1),0)
+  p21 <-replace_na(mean(queue1[type == 0] == 1),0)
+  ml_algo <- matrix(c(p11, 1 - p11, p21, 1 - p21), nrow = 2, byrow = TRUE)
+  priority <- priority_sequence(ml_algo, lamda, service, costs)
+  wait1 <- p11*wait_k(1, ml_algo, lamda, service, costs, priority)+(1-p11)*wait_k(2, ml_algo, lamda, service, costs, priority)
+  wait2 <- p21*wait_k(1, ml_algo, lamda, service, costs, priority)+(1-p21)*wait_k(2, ml_algo, lamda, service, costs, priority)
+
+  return(data.frame(
+    method = method_name,
+    P11 = p11,
+    P21 = p21,
+    Wait1 = wait1,
+    Wait2 = wait2
+  ))
+}
+
+evaluate_type_first_classifier <- function(t1_vals, type, lamda, service, costs, method_name = "method") {
+  if (all(is.na(t1_vals)) || length(t1_vals) == 0) {
+    warning(paste("Skipping method:", method_name, "due to invalid t1_vals"))
+    return(data.frame(method = method_name, P11 = NA, P21 = NA, Wait1 = NA, Wait2 = NA))
+  }
+ type=data$Type
+  thresholds <- seq(0.000000001, 1, 0.001)
+  # Here for estimating the cost function we don't use the actual type, instead we use the predicted type posteriors
+  cost_fn <- function(t) {
+    queue1 <- ifelse(t1_vals >= t, 1, 2)
+    ml_algo <- matrix(0, 2, 2)
+    ml_algo[1,1] <-sum(t1_vals*as.numeric(queue1 == 1))/sum(t1_vals)
+    ml_algo[1,2] <- 1 - ml_algo[1,1]
+    ml_algo[2,1] <- sum((1-t1_vals)*as.numeric(queue1 == 1))/sum(1-t1_vals)
+    ml_algo[2,2] <- 1 - ml_algo[2,1]
+    net_cost_2(ml_algo, lamda, service, costs)
+  }
+
+  costs_vec <- suppressWarnings(Vectorize(cost_fn)(thresholds))
+  if (all(is.infinite(costs_vec))) {
+    warning(paste("All costs are Inf for method:", method_name))
+    return(data.frame(method = method_name, P11 = NA, P21 = NA, Wait1 = NA, Wait2 = NA))
+  }
+
+  t_opt <- thresholds[which.min(costs_vec)]
+  queue1 <- ifelse(t1_vals >= t_opt, 1, 2)
+  cbind(t_opt,evaluate_classifier(queue1, type, lamda, service, costs, method_name))
+}
+
+get_knn_probs <- function(test_x, train_x, train_y, k) {
+  neighbors <- FNN::get.knnx(data = matrix(train_x), query = matrix(test_x), k = k)
+  apply(neighbors$nn.index, 1, function(idx) mean(train_y[idx] == 1))
+}
+
+# Main loop
+set.seed(1200)
+for (i in c(1)) {
+  n1 <- round(sample_size * p1)
+  n2 <- sample_size - n1
+  x <- c(rep(1, n1), rep(2, n2))
+  sample_var <- Vectorize(function(t) if (t == 1) runif(1, 0, 3/2) else runif(1, -1, 1))
+  data <- data.frame(Type = as.numeric(sign(1 - x) + 1), X = sample_var(x))
+
+  # 1. MLE Logistic
+  fit_mle <- glm(Type ~ X, data = data, family = "binomial")
+  t1_vals <- predict(fit_mle, type = "response")
+  type=data$Type
+  results_all <- rbind(results_all, evaluate_type_first_classifier(t1_vals, data$Type, lamda, service, costs, "MLE Logistic"))
+
+  # 2. Bayes Gaussian
+  mu1 <- mean(data$X[data$Type == 1]); mu2 <- mean(data$X[data$Type == 0])
+  sd1 <- sd(data$X[data$Type == 1]); if (is.na(sd1) || sd1 == 0) sd1 <- 1e-6
+  sd2 <- sd(data$X[data$Type == 0]); if (is.na(sd2) || sd2 == 0) sd2 <- 1e-6
+  t1_vals <- (p1 * phi(data$X, mu1, sd1)) / (p1 * phi(data$X, mu1, sd1) + p2 * phi(data$X, mu2, sd2))
+  results_all <- rbind(results_all, evaluate_type_first_classifier(t1_vals, data$Type, lamda, service, costs, "Bayes Gaussian"))
+  print(results_all)
+  # 3. Bayes Uniform
+  a1 <- min(data$X[data$Type == 1]); b1 <- max(data$X[data$Type == 1])
+  a2 <- min(data$X[data$Type == 0]); b2 <- max(data$X[data$Type == 0])
+  t1_vals <- (p1 * u(data$X, a1, b1)) / (p1 * u(data$X, a1, b1) + p2 * u(data$X, a2, b2))
+  results_all <- rbind(results_all, evaluate_type_first_classifier(t1_vals, data$Type, lamda, service, costs, "Bayes Uniform"))
+  print(results_all)
+  # 4. MoM Gaussian
+  var1 <- var(data$X[data$Type == 1]); var2 <- var(data$X[data$Type == 0])
+  sd1 <- sqrt(var1); if (is.na(sd1) || sd1 == 0) sd1 <- 1e-6
+  sd2 <- sqrt(var2); if (is.na(sd2) || sd2 == 0) sd2 <- 1e-6
+  t1_vals <- (p1 * phi(data$X, mu1, sd1)) / (p1 * phi(data$X, mu1, sd1) + p2 * phi(data$X, mu2, sd2))
+  results_all <- rbind(results_all, evaluate_type_first_classifier(t1_vals, data$Type, lamda, service, costs, "MoM Gaussian"))
+  print(results_all)
+  # 5. MoM Uniform
+  a1 <- mu1 - sqrt(3 * var1); b1 <- mu1 + sqrt(3 * var1)
+  a2 <- mu2 - sqrt(3 * var2); b2 <- mu2 + sqrt(3 * var2)
+  t1_vals <- (p1 * u(data$X, a1, b1)) / (p1 * u(data$X, a1, b1) + p2 * u(data$X, a2, b2))
+  t1_vals <- replace_na(t1_vals,0)
+  results_all <- rbind(results_all, evaluate_type_first_classifier(t1_vals, data$Type, lamda, service, costs, "MoM Uniform"))
+  #print(results_all)
+  
+  n1 <- round(sample_size * p1)
+  n2 <- sample_size - n1
+  x <- c(rep(1, n1), rep(2, n2))
+  sample_var <- Vectorize(function(t) if (t == 1) runif(1, 0, 3/2) else runif(1, -1, 1))
+  data_test <- data.frame(Type = as.numeric(sign(1 - x) + 1), X = sample_var(x))
+  
+  # 6. kNN (k=10)
+  t1_vals_knn10 <- get_knn_probs(data$X, data$X, data$Type, 10)
+   obj1 <- evaluate_type_first_classifier(t1_vals_knn10, data$Type, lamda, service, costs, "kNN-10")
+   t_opt=obj1$t_opt
+   t1_vals<- get_knn_probs(data_test$X, data$X, data$Type, 10)
+   queue1 <- ifelse(t1_vals >= t_opt, 1, 2)
+    type = data_test$Type
+    p11 <- replace_na(mean(queue1[type == 1] == 1),0)
+   p21 <-replace_na(mean(queue1[type == 0] == 1),0)
+   ml_algo <- matrix(c(p11, 1 - p11, p21, 1 - p21), nrow = 2, byrow = TRUE)
+  priority <- priority_sequence(ml_algo, lamda, service, costs)
+  wait1 <- p11*wait_k(1, ml_algo, lamda, service, costs, priority)+(1-p11)*wait_k(2, ml_algo, lamda, service, costs, priority)
+  wait2 <- p21*wait_k(1, ml_algo, lamda, service, costs, priority)+(1-p21)*wait_k(2, ml_algo, lamda, service, costs, priority)
+    results_all <- rbind(results_all, data.frame(t_opt,
+    method = "kNN-10",
+    P11 = p11,
+    P21 = p21,
+    Wait1 = wait1,
+    Wait2 = wait2
+  ))
+  
+  # 7. kNN (k=100)
+ t1_vals_knn100 <- get_knn_probs(data$X, data$X, data$Type, 100)
+   obj1 <- evaluate_type_first_classifier(t1_vals_knn100, data$Type, lamda, service, costs, "kNN-100")
+   t_opt=obj1$t_opt
+   t1_vals<- get_knn_probs(data_test$X, data$X, data$Type, 100)
+   queue1 <- ifelse(t1_vals >= t_opt, 1, 2)
+    type = data_test$Type
+    p11 <- replace_na(mean(queue1[type == 1] == 1),0)
+   p21 <-replace_na(mean(queue1[type == 0] == 1),0)
+   ml_algo <- matrix(c(p11, 1 - p11, p21, 1 - p21), nrow = 2, byrow = TRUE)
+  priority <- priority_sequence(ml_algo, lamda, service, costs)
+  wait1 <- p11*wait_k(1, ml_algo, lamda, service, costs, priority)+(1-p11)*wait_k(2, ml_algo, lamda, service, costs, priority)
+  wait2 <- p21*wait_k(1, ml_algo, lamda, service, costs, priority)+(1-p21)*wait_k(2, ml_algo, lamda, service, costs, priority)
+    results_all <- rbind(results_all, data.frame(t_opt,
+    method = "kNN-100",
+    P11 = p11,
+    P21 = p21,
+    Wait1 = wait1,
+    Wait2 = wait2
+  ))
+  # 8. Direct Logistic
+  direct_cost <- function(par) {
+    beta0 <- par[1]; beta1 <- par[2]
+    decision <- ifelse((beta0 + beta1 * data$X) >= 0, 1, 2)
+    ml_algo <- matrix(0, 2, 2)
+    ml_algo[1,1] <- mean(decision[data$Type == 1] == 1)
+    ml_algo[1,2] <- 1 - ml_algo[1,1]
+    ml_algo[2,1] <- mean(decision[data$Type == 0] == 1)
+    ml_algo[2,2] <- 1 - ml_algo[2,1]
+    net_cost_2(ml_algo, lamda, service, costs)
+  }
+
+  par_opt <- optim(c(0.000000001, 0.99999999999999), fn = direct_cost)$par
+  direct_queue <- ifelse(par_opt[1] + par_opt[2] * data$X >= 0, 1, 2)
+  results_all <- rbind(results_all, cbind(t_opt=0.5,evaluate_classifier(direct_queue, data$Type, lamda, service, costs, "Direct Logistic")))
+}
+
+# View final results
+print(results_all)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+mean(pt_11)
+#sd(pt_11)
+se=sd(pt_11)/sqrt(25)
+#se
+1.96*se
+#lower=mean(pt_11)+qnorm(0.025)*se
+#upper=mean(pt_11)+qnorm(0.975)*se
+#lower
+#upper
+```
+
+
+
+```{r}
+mean(pt_21)
+#sd(pt_11)
+se=sd(pt_21)/sqrt(25)
+1.96*se
+#lower=mean(pt_21)+qnorm(0.025)*se
+#upper=mean(pt_21)+qnorm(0.975)*se
+#lower
+#upper
+```
+
+
+```{r}
+mean(pd_11)
+#sd(pt_11)
+se=sd(pd_11)/sqrt(25)
+1.96*se
+lower=mean(pd_11)+qnorm(0.025)*se
+upper=mean(pd_11)+qnorm(0.975)*se
+#lower
+#upper
+```
+
+```{r}
+mean(pd_21)
+#sd(pt_11)
+se=sd(pd_21)/sqrt(25)
+1.96*se
+lower=mean(pd_21)+qnorm(0.025)*se
+upper=mean(pd_21)+qnorm(0.975)*se
+#lower
+#upper
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+### This assumes the type first is a logistic regression classifier obtained via MLE estimates
+
+##### Running the Experiment 25 times ######
+
+
+```{r}
+source("../utils/cost_functions.R")
+source("../utils/header.R")
+library(distr)
+```
+
+
+
+```{r}
+cost1=10
+cost2=1
+rho=0.7
+p1=1/10
+p2=9/10
+lambda1=p1
+lambda2=p2
+service1=(lambda1+lambda2)/rho
+service2=(lambda1+lambda2)/rho
+service1
+service2
+ml_algo=rbind(c(1,0),c(0,1))
+lamda=c(lambda1,lambda2)
+service=c(service1,service2)
+costs=c(cost1,cost2)
+sample_size=10000
+pt_11=vector()
+pt_21=vector()
+pd_11=vector()
+pd_21=vector()
+for(i in 1:25){
+myMix <- UnivarMixingDistribution(DiscreteDistribution(1), 
+                                DiscreteDistribution(2),
+                                  mixCoeff=c(p1,p2))
+rmyMix <- r(myMix)
+x <- rmyMix(sample_size)
+#hist(x, col="grey", main="")
+sample_var=function(x){
+  if(x==1){
+    return(runif(1,0,3/2))
+  }else if(x==2)
+    {
+    return(runif(1,-1,1))
+  }
+}
+sample_var=Vectorize(sample_var)
+data=cbind(Type=x,X=sample_var(x))
+data=as.data.frame(data)
+data$Type=as.numeric(sign(1-data$Type)+1)
+fit=glm(Type~X,data,family="binomial")
+classifier_predictions=fit$fitted.values
+estimated_cost_thresh=function(t){
+  p11=sum(classifier_predictions*0.5*(1+sign(classifier_predictions-t)))/sum(classifier_predictions)
+  p21=sum((1-classifier_predictions)*0.5*(1+sign(classifier_predictions-t)))/sum(1-classifier_predictions)
+  p12=1-p11
+  p22=1-p21
+  ml_algo=rbind(c(p11,p12),c(p21,p22))
+  return(net_cost_2(ml_algo,lamda,service,costs))
+}
+estimated_cost_thresh=Vectorize(estimated_cost_thresh)
+thresholds=seq(0,1,0.001)
+min(estimated_cost_thresh(thresholds))
+t=thresholds[which.min(estimated_cost_thresh(thresholds))]
+x_c=(qlogis(t)-fit$coefficients[1])/fit$coefficients[2]
+p11=1-2*x_c/3
+p21=1-(1+x_c)/2
+pt_11[i]=p11
+pt_21[i]=p21
+estimated_cost_direct=function(par){
+  beta_0=par[1]
+  beta_1=par[2]
+  p11=sum(data$Type*0.5*(1+sign(beta_0+beta_1*data$X)))/sum(data$Type)
+  p21=sum((1-data$Type)*0.5*(1+sign(beta_0+beta_1*data$X)))/sum(1-data$Type)
+  p12=1-p11
+  p22=1-p21
+  ml_algo=rbind(c(p11,p12),c(p21,p22))
+  return(net_cost_2(ml_algo,lamda,service,costs))
+}
+optim(par=c(fit$coefficients[1],fit$coefficients[2]),fn=estimated_cost_direct)
+par=optim(par=c(fit$coefficients[1],fit$coefficients[2]),fn=estimated_cost_direct)$par
+x_c=-par[1]/par[2]
+p11=1-2*x_c/3
+p21=1-(1+x_c)/2
+pd_11[i]=p11
+pd_21[i]=p21
+#print(i)
+}
+mean(pt_11)
+#sd(pt_11)
+se=sd(pt_11)/sqrt(25)
+#se
+1.96*se
+#lower=mean(pt_11)+qnorm(0.025)*se
+#upper=mean(pt_11)+qnorm(0.975)*se
+#lower
+#upper
+mean(pt_21)
+#sd(pt_11)
+se=sd(pt_21)/sqrt(25)
+1.96*se
+#lower=mean(pt_21)+qnorm(0.025)*se
+#upper=mean(pt_21)+qnorm(0.975)*se
+#lower
+#upper
+mean(pd_11)
+#sd(pt_11)
+se=sd(pd_11)/sqrt(25)
+1.96*se
+lower=mean(pd_11)+qnorm(0.025)*se
+upper=mean(pd_11)+qnorm(0.975)*se
+#lower
+#upper
+mean(pd_21)
+#sd(pt_11)
+se=sd(pd_21)/sqrt(25)
+1.96*se
+lower=mean(pd_21)+qnorm(0.025)*se
+upper=mean(pd_21)+qnorm(0.975)*se
+#lower
+#upper
+ml_algo_type_first=rbind(c(mean(pt_11),mean(1-pt_11)),c(mean(pt_21),mean(1-pt_21)))
+ml_algo_type_first
+ml_algo_direct=rbind(c(mean(pd_11),mean(1-pd_11)),c(mean(pd_21),mean(1-pd_21)))
+ml_algo_direct
+costs=c(cost1,cost2)
+net_cost_2(ml_algo=ml_algo_type_first,lamda,service,costs)
+net_cost_2(ml_algo=ml_algo_direct,lamda,service,costs)
+
+(net_cost_2(ml_algo=ml_algo_type_first,lamda,service,costs)-net_cost_2(ml_algo=ml_algo_direct,lamda,service,costs))/net_cost_2(ml_algo=ml_algo_direct,lamda,service,costs)
+```
+
+#Next, we try some other classifiers. 
+
+#First, we try a Naive Bayes Classifier
+
+
+
+```{r}
+cost1=10
+cost2=1
+rho=0.7
+p1=1/10
+p2=9/10
+lambda1=p1
+lambda2=p2
+service1=(lambda1+lambda2)/rho
+service2=(lambda1+lambda2)/rho
+service1
+service2
+ml_algo=rbind(c(1,0),c(0,1))
+lamda=c(lambda1,lambda2)
+service=c(service1,service2)
+costs=c(cost1,cost2)
+sample_size=10000
+pt_11=vector()
+pt_21=vector()
+pd_11=vector()
+pd_21=vector()
+for(i in 1:25){
+myMix <- UnivarMixingDistribution(DiscreteDistribution(1), 
+                                DiscreteDistribution(2),
+                                  mixCoeff=c(p1,p2))
+rmyMix <- r(myMix)
+x <- rmyMix(sample_size)
+#hist(x, col="grey", main="")
+sample_var=function(x){
+  if(x==1){
+    return(runif(1,0,3/2))
+  }else if(x==2)
+    {
+    return(runif(1,-1,1))
+  }
+}
+sample_var=Vectorize(sample_var)
+data=cbind(Type=x,X=sample_var(x))
+data=as.data.frame(data)
+data$Type=as.numeric(sign(1-data$Type)+1)
+library(e1071)
+fit = naiveBayes(Type ~ X, data = data)
+preds = predict(fit, newdata = data, type = "raw")
+classifier_predictions=preds[,2]
+estimated_cost_thresh=function(t){
+  p11=sum(classifier_predictions*0.5*(1+sign(classifier_predictions-t)))/sum(classifier_predictions)
+  p21=sum((1-classifier_predictions)*0.5*(1+sign(classifier_predictions-t)))/sum(1-classifier_predictions)
+  p12=1-p11
+  p22=1-p21
+  ml_algo=rbind(c(p11,p12),c(p21,p22))
+  return(net_cost_2(ml_algo,lamda,service,costs))
+}
+estimated_cost_thresh=Vectorize(estimated_cost_thresh)
+thresholds=seq(0,1,0.001)
+min(estimated_cost_thresh(thresholds))
+t=thresholds[which.min(estimated_cost_thresh(thresholds))]
+#x_c=(qlogis(t)-fit$coefficients[1])/fit$coefficients[2]
+#p11=1-2*x_c/3
+#p21=1-(1+x_c)/2
+pred_queue=0.5*(1+sign(classifier_predictions-t))
+pt_11[i]=sum(data$Type*pred_queue)/sum(data$Type)
+pt_21[i]=sum((1-data$Type)*pred_queue)/sum(1-data$Type)
+estimated_cost_direct=function(par){
+  beta_0=par[1]
+  beta_1=par[2]
+  p11=sum(data$Type*0.5*(1+sign(beta_0+beta_1*data$X)))/sum(data$Type)
+  p21=sum((1-data$Type)*0.5*(1+sign(beta_0+beta_1*data$X)))/sum(1-data$Type)
+  p12=1-p11
+  p22=1-p21
+  ml_algo=rbind(c(p11,p12),c(p21,p22))
+  return(net_cost_2(ml_algo,lamda,service,costs))
+}
+fit2=glm(Type~X,data,family="binomial")
+#optim(par=c(fit$coefficients[1],fit$coefficients[2]),fn=estimated_cost_direct)
+par=optim(par=c(fit2$coefficients[1],fit2$coefficients[2]),fn=estimated_cost_direct)$par
+x_c=-par[1]/par[2]
+p11=1-2*x_c/3
+p21=1-(1+x_c)/2
+pd_11[i]=p11
+pd_21[i]=p21
+#print(i)
+}
+mean(pt_11)
+#sd(pt_11)
+se=sd(pt_11)/sqrt(25)
+#se
+1.96*se
+#lower=mean(pt_11)+qnorm(0.025)*se
+#upper=mean(pt_11)+qnorm(0.975)*se
+#lower
+#upper
+mean(pt_21)
+#sd(pt_11)
+se=sd(pt_21)/sqrt(25)
+1.96*se
+#lower=mean(pt_21)+qnorm(0.025)*se
+#upper=mean(pt_21)+qnorm(0.975)*se
+#lower
+#upper
+mean(pd_11)
+#sd(pt_11)
+se=sd(pd_11)/sqrt(25)
+1.96*se
+lower=mean(pd_11)+qnorm(0.025)*se
+upper=mean(pd_11)+qnorm(0.975)*se
+#lower
+#upper
+mean(pd_21)
+#sd(pt_11)
+se=sd(pd_21)/sqrt(25)
+1.96*se
+lower=mean(pd_21)+qnorm(0.025)*se
+upper=mean(pd_21)+qnorm(0.975)*se
+#lower
+#upper
+ml_algo_type_first=rbind(c(mean(pt_11),mean(1-pt_11)),c(mean(pt_21),mean(1-pt_21)))
+ml_algo_type_first
+ml_algo_direct=rbind(c(mean(pd_11),mean(1-pd_11)),c(mean(pd_21),mean(1-pd_21)))
+ml_algo_direct
+costs=c(cost1,cost2)
+net_cost_2(ml_algo=ml_algo_type_first,lamda,service,costs)
+net_cost_2(ml_algo=ml_algo_direct,lamda,service,costs)
+
+(net_cost_2(ml_algo=ml_algo_type_first,lamda,service,costs)-net_cost_2(ml_algo=ml_algo_direct,lamda,service,costs))/net_cost_2(ml_algo=ml_algo_direct,lamda,service,costs)
+
+```
+
+
+# non-MLE classifier—specifically a Bayesian Gaussian Naive Bayes classifier with conjugate prior shrinkage on the mean.
+
+```{r}
+cost1=10
+cost2=1
+rho=0.7
+p1=1/10
+p2=9/10
+lambda1=p1
+lambda2=p2
+service1=(lambda1+lambda2)/rho
+service2=(lambda1+lambda2)/rho
+service1
+service2
+ml_algo=rbind(c(1,0),c(0,1))
+lamda=c(lambda1,lambda2)
+service=c(service1,service2)
+costs=c(cost1,cost2)
+sample_size=10000
+mu0_prior = 0
+tau2 = 0.1 # Prior variance (adjustable)
+pt_11=vector()
+pt_21=vector()
+pd_11=vector()
+pd_21=vector()
+for(i in 1:25){
+myMix <- UnivarMixingDistribution(DiscreteDistribution(1), 
+                                DiscreteDistribution(2),
+                                  mixCoeff=c(p1,p2))
+rmyMix <- r(myMix)
+x <- rmyMix(sample_size)
+#hist(x, col="grey", main="")
+sample_var=function(x){
+  if(x==1){
+    return(runif(1,0,3/2))
+  }else if(x==2)
+    {
+    return(runif(1,-1,1))
+  }
+}
+sample_var=Vectorize(sample_var)
+data=cbind(Type=x,X=sample_var(x))
+data=as.data.frame(data)
+data$Type=as.numeric(sign(1-data$Type)+1)
+library(e1071)
+  # Estimate class priors
+  class_counts <- table(data$Type)
+  n0 <- class_counts["0"]
+  n1 <- class_counts["1"]
+  prior0 <- n0 / sample_size
+  prior1 <- n1 / sample_size
+  
+  # Estimate posterior means and variances (Naive Bayes)
+  data0 <- data[data$Type == 0, "X"]
+  data1 <- data[data$Type == 1, "X"]
+  
+  # MLE estimates
+  xbar0 <- mean(data0)
+  xbar1 <- mean(data1)
+  s20 <- var(data0)
+  s21 <- var(data1)
+  
+  # Bayesian posterior means
+  mu0_post <- (tau2 * xbar0 + s20 * mu0_prior / n0) / (tau2 + s20 / n0)
+  mu1_post <- (tau2 * xbar1 + s21 * mu0_prior / n1) / (tau2 + s21 / n1)
+  
+  # Gaussian density function
+  gaussian_pdf <- function(x, mu, sigma2) {
+    return(dnorm(x, mean = mu, sd = sqrt(sigma2)))
+  }
+  
+  # Compute posterior P(Y = 1 | X) using Bayes rule
+  pred_probs <- mapply(function(xi) {
+    num1 <- prior1 * gaussian_pdf(xi, mu1_post, s21)
+    num0 <- prior0 * gaussian_pdf(xi, mu0_post, s20)
+    return(num1 / (num1 + num0))
+  }, data$X)
+  
+  # These are your non-MLE classifier predictions (posterior probs)
+  classifier_predictions <- pred_probs
+estimated_cost_thresh=function(t){
+  p11=sum(classifier_predictions*0.5*(1+sign(classifier_predictions-t)))/sum(classifier_predictions)
+  p21=sum((1-classifier_predictions)*0.5*(1+sign(classifier_predictions-t)))/sum(1-classifier_predictions)
+  p12=1-p11
+  p22=1-p21
+  ml_algo=rbind(c(p11,p12),c(p21,p22))
+  return(net_cost_2(ml_algo,lamda,service,costs))
+}
+estimated_cost_thresh=Vectorize(estimated_cost_thresh)
+thresholds=seq(0,1,0.001)
+min(estimated_cost_thresh(thresholds))
+t=thresholds[which.min(estimated_cost_thresh(thresholds))]
+#x_c=(qlogis(t)-fit$coefficients[1])/fit$coefficients[2]
+#p11=1-2*x_c/3
+#p21=1-(1+x_c)/2
+pred_queue=0.5*(1+sign(classifier_predictions-t))
+pt_11[i]=sum(data$Type*pred_queue)/sum(data$Type)
+pt_21[i]=sum((1-data$Type)*pred_queue)/sum(1-data$Type)
+estimated_cost_direct=function(par){
+  beta_0=par[1]
+  beta_1=par[2]
+  p11=sum(data$Type*0.5*(1+sign(beta_0+beta_1*data$X)))/sum(data$Type)
+  p21=sum((1-data$Type)*0.5*(1+sign(beta_0+beta_1*data$X)))/sum(1-data$Type)
+  p12=1-p11
+  p22=1-p21
+  ml_algo=rbind(c(p11,p12),c(p21,p22))
+  return(net_cost_2(ml_algo,lamda,service,costs))
+}
+fit2=glm(Type~X,data,family="binomial")
+#optim(par=c(fit$coefficients[1],fit$coefficients[2]),fn=estimated_cost_direct)
+par=optim(par=c(fit2$coefficients[1],fit2$coefficients[2]),fn=estimated_cost_direct)$par
+x_c=-par[1]/par[2]
+p11=1-2*x_c/3
+p21=1-(1+x_c)/2
+pd_11[i]=p11
+pd_21[i]=p21
+#print(i)
+}
+mean(pt_11)
+#sd(pt_11)
+se=sd(pt_11)/sqrt(25)
+#se
+1.96*se
+#lower=mean(pt_11)+qnorm(0.025)*se
+#upper=mean(pt_11)+qnorm(0.975)*se
+#lower
+#upper
+mean(pt_21)
+#sd(pt_11)
+se=sd(pt_21)/sqrt(25)
+1.96*se
+#lower=mean(pt_21)+qnorm(0.025)*se
+#upper=mean(pt_21)+qnorm(0.975)*se
+#lower
+#upper
+mean(pd_11)
+#sd(pt_11)
+se=sd(pd_11)/sqrt(25)
+1.96*se
+lower=mean(pd_11)+qnorm(0.025)*se
+upper=mean(pd_11)+qnorm(0.975)*se
+#lower
+#upper
+mean(pd_21)
+#sd(pt_11)
+se=sd(pd_21)/sqrt(25)
+1.96*se
+lower=mean(pd_21)+qnorm(0.025)*se
+upper=mean(pd_21)+qnorm(0.975)*se
+#lower
+#upper
+ml_algo_type_first=rbind(c(mean(pt_11),mean(1-pt_11)),c(mean(pt_21),mean(1-pt_21)))
+ml_algo_type_first
+ml_algo_direct=rbind(c(mean(pd_11),mean(1-pd_11)),c(mean(pd_21),mean(1-pd_21)))
+ml_algo_direct
+costs=c(cost1,cost2)
+net_cost_2(ml_algo=ml_algo_type_first,lamda,service,costs)
+net_cost_2(ml_algo=ml_algo_direct,lamda,service,costs)
+
+(net_cost_2(ml_algo=ml_algo_type_first,lamda,service,costs)-net_cost_2(ml_algo=ml_algo_direct,lamda,service,costs))/net_cost_2(ml_algo=ml_algo_direct,lamda,service,costs)
+```
+
+
+
+
+
+
+```{r}
+cost1=10
+cost2=1
+rho=0.7
+p1=1/10
+p2=9/10
+lambda1=p1
+lambda2=p2
+service1=(lambda1+lambda2)/rho
+service2=(lambda1+lambda2)/rho
+service1
+service2
+ml_algo=rbind(c(1,0),c(0,1))
+lamda=c(lambda1,lambda2)
+service=c(service1,service2)
+costs=c(cost1,cost2)
+sample_size=10000
+mu0_prior = 0
+tau2 = 0.1 # Prior variance (adjustable)
+pt_11=vector()
+pt_21=vector()
+pd_11=vector()
+pd_21=vector()
+for(i in 1:25){
+myMix <- UnivarMixingDistribution(DiscreteDistribution(1), 
+                                DiscreteDistribution(2),
+                                  mixCoeff=c(p1,p2))
+rmyMix <- r(myMix)
+x <- rmyMix(sample_size)
+#hist(x, col="grey", main="")
+sample_var=function(x){
+  if(x==1){
+    return(runif(1,0,3/2))
+  }else if(x==2)
+    {
+    return(runif(1,-1,1))
+  }
+}
+sample_var=Vectorize(sample_var)
+data=cbind(Type=x,X=sample_var(x))
+data=as.data.frame(data)
+data$Type=as.numeric(sign(1-data$Type)+1)
+library(e1071)
+  # Estimate class priors
+  class_counts <- table(data$Type)
+  n0 <- class_counts["0"]
+  n1 <- class_counts["1"]
+  prior0 <- n0 / sample_size
+  prior1 <- n1 / sample_size
+  
+  # Estimate posterior means and variances (Naive Bayes)
+  data0 <- data[data$Type == 0, "X"]
+  data1 <- data[data$Type == 1, "X"]
+  
+  # MLE estimates
+  xbar0 <- mean(data0)
+  xbar1 <- mean(data1)
+  s20 <- var(data0)
+  s21 <- var(data1)
+  
+  # Bayesian posterior means
+  mu0_post <- (tau2 * xbar0 + s20 * mu0_prior / n0) / (tau2 + s20 / n0)
+  mu1_post <- (tau2 * xbar1 + s21 * mu0_prior / n1) / (tau2 + s21 / n1)
+  
+  # Uniform density function
+estimate_uniform_mom <- function(x) {
+  xbar <- mean(x)
+  s2 <- var(x)
+  delta <- sqrt(3 * s2)
+  a <- xbar - delta
+  b <- xbar + delta
+  return(c(a = a, b = b))
+}
+
+# Estimate parameters
+uniform0 <- estimate_uniform_mom(data0)
+uniform1 <- estimate_uniform_mom(data1)
+
+# Uniform likelihood function
+uniform_likelihood <- function(x, a, b) {
+  ifelse(x >= a & x <= b, 1 / (b - a), 0)
+}
+
+# Posterior probabilities under uniform model
+posterior_probs_uniform <- mapply(function(xi) {
+  num1 <- prior1 * uniform_likelihood(xi, uniform1["a"], uniform1["b"])
+  num0 <- prior0 * uniform_likelihood(xi, uniform0["a"], uniform0["b"])
+  denom <- num0 + num1
+  if (denom == 0) return(NA)  # outside support of both
+  return(num1 / denom)
+}, data$X)
+
+classifier_predictions <- posterior_probs_uniform
+classifier_predictions <- replace_na(classifier_predictions,0)
+estimated_cost_thresh=function(t){
+  p11=sum(classifier_predictions*0.5*(1+sign(classifier_predictions-t)))/sum(classifier_predictions)
+  p21=sum((1-classifier_predictions)*0.5*(1+sign(classifier_predictions-t)))/sum(1-classifier_predictions)
+  p12=1-p11
+  p22=1-p21
+  ml_algo=rbind(c(p11,p12),c(p21,p22))
+  return(net_cost_2(ml_algo,lamda,service,costs))
+}
+estimated_cost_thresh=Vectorize(estimated_cost_thresh)
+thresholds=seq(0,1,0.001)
+min(estimated_cost_thresh(thresholds))
+t=thresholds[which.min(estimated_cost_thresh(thresholds))]
+#x_c=(qlogis(t)-fit$coefficients[1])/fit$coefficients[2]
+#p11=1-2*x_c/3
+#p21=1-(1+x_c)/2
+pred_queue=0.5*(1+sign(classifier_predictions-t))
+pt_11[i]=sum(data$Type*pred_queue)/sum(data$Type)
+pt_21[i]=sum((1-data$Type)*pred_queue)/sum(1-data$Type)
+estimated_cost_direct=function(par){
+  beta_0=par[1]
+  beta_1=par[2]
+  p11=sum(data$Type*0.5*(1+sign(beta_0+beta_1*data$X)))/sum(data$Type)
+  p21=sum((1-data$Type)*0.5*(1+sign(beta_0+beta_1*data$X)))/sum(1-data$Type)
+  p12=1-p11
+  p22=1-p21
+  ml_algo=rbind(c(p11,p12),c(p21,p22))
+  return(net_cost_2(ml_algo,lamda,service,costs))
+}
+fit2=glm(Type~X,data,family="binomial")
+#optim(par=c(fit$coefficients[1],fit$coefficients[2]),fn=estimated_cost_direct)
+par=optim(par=c(fit2$coefficients[1],fit2$coefficients[2]),fn=estimated_cost_direct)$par
+x_c=-par[1]/par[2]
+p11=1-2*x_c/3
+p21=1-(1+x_c)/2
+pd_11[i]=p11
+pd_21[i]=p21
+#print(i)
+}
+mean(pt_11)
+#sd(pt_11)
+se=sd(pt_11)/sqrt(25)
+#se
+1.96*se
+#lower=mean(pt_11)+qnorm(0.025)*se
+#upper=mean(pt_11)+qnorm(0.975)*se
+#lower
+#upper
+mean(pt_21)
+#sd(pt_11)
+se=sd(pt_21)/sqrt(25)
+1.96*se
+#lower=mean(pt_21)+qnorm(0.025)*se
+#upper=mean(pt_21)+qnorm(0.975)*se
+#lower
+#upper
+mean(pd_11)
+#sd(pt_11)
+se=sd(pd_11)/sqrt(25)
+1.96*se
+lower=mean(pd_11)+qnorm(0.025)*se
+upper=mean(pd_11)+qnorm(0.975)*se
+#lower
+#upper
+mean(pd_21)
+#sd(pt_11)
+se=sd(pd_21)/sqrt(25)
+1.96*se
+lower=mean(pd_21)+qnorm(0.025)*se
+upper=mean(pd_21)+qnorm(0.975)*se
+#lower
+#upper
+ml_algo_type_first=rbind(c(mean(pt_11),mean(1-pt_11)),c(mean(pt_21),mean(1-pt_21)))
+ml_algo_type_first
+ml_algo_direct=rbind(c(mean(pd_11),mean(1-pd_11)),c(mean(pd_21),mean(1-pd_21)))
+ml_algo_direct
+costs=c(cost1,cost2)
+net_cost_2(ml_algo=ml_algo_type_first,lamda,service,costs)
+net_cost_2(ml_algo=ml_algo_direct,lamda,service,costs)
+
+(net_cost_2(ml_algo=ml_algo_type_first,lamda,service,costs)-net_cost_2(ml_algo=ml_algo_direct,lamda,service,costs))/net_cost_2(ml_algo=ml_algo_direct,lamda,service,costs)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+cost1=10
+cost2=1
+rho=0.7
+p1=1/10
+p2=9/10
+lambda1=p1
+lambda2=p2
+service1=(lambda1+lambda2)/rho
+service2=(lambda1+lambda2)/rho
+service1
+service2
+ml_algo=rbind(c(1,0),c(0,1))
+lamda=c(lambda1,lambda2)
+service=c(service1,service2)
+costs=c(cost1,cost2)
+sample_size=10000
+```
+
+```{r}
+pt_11=vector()
+pt_21=vector()
+pd_11=vector()
+pd_21=vector()
+for(i in 1:25){
+myMix <- UnivarMixingDistribution(DiscreteDistribution(1), 
+                                DiscreteDistribution(2),
+                                  mixCoeff=c(p1,p2))
+rmyMix <- r(myMix)
+x <- rmyMix(sample_size)
+#hist(x, col="grey", main="")
+sample_var=function(x){
+  if(x==1){
+    return(runif(1,0,3/2))
+  }else if(x==2)
+    {
+    return(runif(1,-1,1))
+  }
+}
+sample_var=Vectorize(sample_var)
+data=cbind(Type=x,X=sample_var(x))
+data=as.data.frame(data)
+data$Type=as.numeric(sign(1-data$Type)+1)
+fit=glm(Type~X,data,family="binomial")
+classifier_predictions=fit$fitted.values
+estimated_cost_thresh=function(t){
+  p11=sum(classifier_predictions*0.5*(1+sign(classifier_predictions-t)))/sum(classifier_predictions)
+  p21=sum((1-classifier_predictions)*0.5*(1+sign(classifier_predictions-t)))/sum(1-classifier_predictions)
+  p12=1-p11
+  p22=1-p21
+  ml_algo=rbind(c(p11,p12),c(p21,p22))
+  return(net_cost_2(ml_algo,lamda,service,costs))
+}
+estimated_cost_thresh=Vectorize(estimated_cost_thresh)
+thresholds=seq(0,1,0.001)
+min(estimated_cost_thresh(thresholds))
+t=thresholds[which.min(estimated_cost_thresh(thresholds))]
+x_c=(qlogis(t)-fit$coefficients[1])/fit$coefficients[2]
+p11=1-2*x_c/3
+p21=1-(1+x_c)/2
+pt_11[i]=p11
+pt_21[i]=p21
+estimated_cost_direct=function(par){
+  beta_0=par[1]
+  beta_1=par[2]
+  p11=sum(data$Type*0.5*(1+sign(beta_0+beta_1*data$X)))/sum(data$Type)
+  p21=sum((1-data$Type)*0.5*(1+sign(beta_0+beta_1*data$X)))/sum(1-data$Type)
+  p12=1-p11
+  p22=1-p21
+  ml_algo=rbind(c(p11,p12),c(p21,p22))
+  return(net_cost_2(ml_algo,lamda,service,costs))
+}
+optim(par=c(fit$coefficients[1],fit$coefficients[2]),fn=estimated_cost_direct)
+par=optim(par=c(fit$coefficients[1],fit$coefficients[2]),fn=estimated_cost_direct)$par
+x_c=-par[1]/par[2]
+p11=1-2*x_c/3
+p21=1-(1+x_c)/2
+pd_11[i]=p11
+pd_21[i]=p21
+#print(i)
+}
+```
+
+
+
+```{r}
+mean(pt_11)
+#sd(pt_11)
+se=sd(pt_11)/sqrt(25)
+#se
+1.96*se
+#lower=mean(pt_11)+qnorm(0.025)*se
+#upper=mean(pt_11)+qnorm(0.975)*se
+#lower
+#upper
+```
+
+
+
+```{r}
+mean(pt_21)
+#sd(pt_11)
+se=sd(pt_21)/sqrt(25)
+1.96*se
+#lower=mean(pt_21)+qnorm(0.025)*se
+#upper=mean(pt_21)+qnorm(0.975)*se
+#lower
+#upper
+```
+
+
+```{r}
+mean(pd_11)
+#sd(pt_11)
+se=sd(pd_11)/sqrt(25)
+1.96*se
+lower=mean(pd_11)+qnorm(0.025)*se
+upper=mean(pd_11)+qnorm(0.975)*se
+#lower
+#upper
+```
+
+```{r}
+mean(pd_21)
+#sd(pt_11)
+se=sd(pd_21)/sqrt(25)
+1.96*se
+lower=mean(pd_21)+qnorm(0.025)*se
+upper=mean(pd_21)+qnorm(0.975)*se
+#lower
+#upper
+```
+
+
+
+
+```{r}
+source("../utils/cost_functions.R")
+source("../utils/header.R")
+library(distr)
+```
+
+
+```{r}
+cost1=10
+cost2=1
+rho=0.7
+p1=1/10
+p2=9/10
+lambda1=p1
+lambda2=p2
+service1=(lambda1+lambda2)/rho
+service2=(lambda1+lambda2)/rho
+service1
+service2
+ml_algo=rbind(c(1,0),c(0,1))
+lamda=c(lambda1,lambda2)
+service=c(service1,service2)
+costs=c(cost1,cost2)
+sample_size=100000
+```
+
+```{r}
+pt_11=vector()
+pt_21=vector()
+pd_11=vector()
+pd_21=vector()
+for(i in 1:25){
+myMix <- UnivarMixingDistribution(DiscreteDistribution(1), 
+                                DiscreteDistribution(2),
+                                  mixCoeff=c(p1,p2))
+rmyMix <- r(myMix)
+x <- rmyMix(sample_size)
+#hist(x, col="grey", main="")
+sample_var=function(x){
+  if(x==1){
+    return(runif(1,0,3/2))
+  }else if(x==2)
+    {
+    return(runif(1,-1,1))
+  }
+}
+sample_var=Vectorize(sample_var)
+data=cbind(Type=x,X=sample_var(x))
+data=as.data.frame(data)
+data$Type=as.numeric(sign(1-data$Type)+1)
+fit=glm(Type~X,data,family="binomial")
+classifier_predictions=fit$fitted.values
+estimated_cost_thresh=function(t){
+  p11=sum(classifier_predictions*0.5*(1+sign(classifier_predictions-t)))/sum(classifier_predictions)
+  p21=sum((1-classifier_predictions)*0.5*(1+sign(classifier_predictions-t)))/sum(1-classifier_predictions)
+  p12=1-p11
+  p22=1-p21
+  ml_algo=rbind(c(p11,p12),c(p21,p22))
+  return(net_cost_2(ml_algo,lamda,service,costs))
+}
+estimated_cost_thresh=Vectorize(estimated_cost_thresh)
+thresholds=seq(0,1,0.001)
+min(estimated_cost_thresh(thresholds))
+t=thresholds[which.min(estimated_cost_thresh(thresholds))]
+x_c=(qlogis(t)-fit$coefficients[1])/fit$coefficients[2]
+p11=1-2*x_c/3
+p21=1-(1+x_c)/2
+pt_11[i]=p11
+pt_21[i]=p21
+estimated_cost_direct=function(par){
+  beta_0=par[1]
+  beta_1=par[2]
+  p11=sum(data$Type*0.5*(1+sign(beta_0+beta_1*data$X)))/sum(data$Type)
+  p21=sum((1-data$Type)*0.5*(1+sign(beta_0+beta_1*data$X)))/sum(1-data$Type)
+  p12=1-p11
+  p22=1-p21
+  ml_algo=rbind(c(p11,p12),c(p21,p22))
+  return(net_cost_2(ml_algo,lamda,service,costs))
+}
+optim(par=c(fit$coefficients[1],fit$coefficients[2]),fn=estimated_cost_direct)
+par=optim(par=c(fit$coefficients[1],fit$coefficients[2]),fn=estimated_cost_direct)$par
+x_c=-par[1]/par[2]
+p11=1-2*x_c/3
+p21=1-(1+x_c)/2
+pd_11[i]=p11
+pd_21[i]=p21
+#print(i)
+}
+```
+
+
+```{r}
+mean(pt_11)
+#sd(pt_11)
+se=sd(pt_11)/sqrt(10)
+#se
+1.96*se
+#lower=mean(pt_11)+qnorm(0.025)*se
+#upper=mean(pt_11)+qnorm(0.975)*se
+#lower
+#upper
+```
+
+
+
+```{r}
+mean(pt_21)
+#sd(pt_11)
+se=sd(pt_21)/sqrt(10)
+1.96*se
+#lower=mean(pt_21)+qnorm(0.025)*se
+#upper=mean(pt_21)+qnorm(0.975)*se
+#lower
+#upper
+```
+
+
+```{r}
+mean(pd_11)
+#sd(pt_11)
+se=sd(pd_11)/sqrt(10)
+1.96*se
+lower=mean(pd_11)+qnorm(0.025)*se
+upper=mean(pd_11)+qnorm(0.975)*se
+#lower
+#upper
+```
+
+```{r}
+mean(pd_21)
+#sd(pt_11)
+se=sd(pd_21)/sqrt(10)
+1.96*se
+lower=mean(pd_21)+qnorm(0.025)*se
+upper=mean(pd_21)+qnorm(0.975)*se
+#lower
+#upper
+```
+
+
+
+
+
