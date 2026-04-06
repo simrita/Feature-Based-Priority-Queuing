@@ -1,0 +1,2012 @@
+---
+title: "optimal_classification_matrix_total_variation"
+author: "Simrita Singh"
+date: "7/18/2024"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+source("../utils/header.R")
+```
+
+```{r}
+source("../utils/cost_functions.R")
+```
+
+```{r}
+sample_tv=1000
+tv_13=runif(sample_tv)
+tv_12=runif(sample_tv)*tv_13
+tv_23=(tv_13-tv_12)+runif(sample_tv)*tv_12
+```
+
+```{r}
+cost3=1
+cost2=2
+cost1=2+sample_tv*runif(sample_tv)
+rho=runif(sample_tv)
+p1=runif(sample_tv)
+p2=runif(sample_tv)
+p3=runif(sample_tv)
+sum_p=p1+p2+p3
+p1=p1/sum_p
+p2=p2/sum_p
+p3=p3/sum_p
+lambda1=p1
+lambda2=p2
+lambda3=p3
+service1=(lambda1+lambda2+lambda3)/rho
+service2=(lambda1+lambda2+lambda3)/rho
+service3=(lambda1+lambda2+lambda3)/rho
+data_params=as.data.frame(cbind(rho,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3,tv_13,tv_12,tv_23))
+```
+
+
+
+
+```{r}
+classification_matrix_ideal1=function(tv_13,tv_12,tv_23){
+  pmat=rbind(c(1,0),c(1-tv_12,tv_12),c(1-tv_13,tv_13))
+  return(as.matrix(pmat))
+  }
+classification_matrix_ideal1=Vectorize(classification_matrix_ideal1, SIMPLIFY = FALSE)
+classification_matrix_ideal2=function(tv_13,tv_12,tv_23){
+  pmat=rbind(c(1,0),c(1-tv_13+tv_23,tv_13-tv_23),c(1-tv_13,tv_13))
+  return(as.matrix(pmat))
+  }
+classification_matrix_ideal2=Vectorize(classification_matrix_ideal2, SIMPLIFY = FALSE)
+classification_matrix_ideal3=function(tv_13,tv_12,tv_23){
+  pmat=rbind(c(1,0),c(1,0),c(1-tv_23,tv_23))
+  return(as.matrix(pmat))
+  }
+classification_matrix_ideal3=Vectorize(classification_matrix_ideal3, SIMPLIFY = FALSE)
+
+```
+
+```{r}
+data_params<- data_params %>% mutate(pmat_ideal1=classification_matrix_ideal1(tv_13,tv_12,tv_23),
+                                     pmat_ideal2=classification_matrix_ideal2(tv_13,tv_12,tv_23),
+                                     pmat_ideal3=classification_matrix_ideal3(tv_13,tv_12,tv_23)
+                                                      )
+```
+
+
+```{r}
+head(data_params)
+```
+
+```{r}
+net_cost_2_expanded<-function(ml_algo,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3){
+den1=1-lambda1*ml_algo[1,1]/service1-lambda2*ml_algo[2,1]/service2-lambda3*ml_algo[3,1]/service3
+den2=den1-lambda1*ml_algo[1,2]/service1-lambda2*ml_algo[2,2]/service2-lambda3*ml_algo[3,2]/service3
+num1=cost1*lambda1*ml_algo[1,1]+cost2*lambda2*ml_algo[2,1]+cost3*lambda3*ml_algo[3,1]
+num2=cost1*lambda1*ml_algo[1,2]+cost2*lambda2*ml_algo[2,2]+cost3*lambda3*ml_algo[3,2]
+return((num1/den1+num2/(den1*den2))*(lambda1/(service1^2)+lambda2/(service2^2)+lambda3/(service3^2)))
+}
+net_cost_2_expanded=Vectorize(net_cost_2_expanded)
+```
+
+```{r}
+data_params = data_params %>% mutate(
+                                   cost_pmat_ideal1=net_cost_2_expanded(pmat_ideal1,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_ideal2=net_cost_2_expanded(pmat_ideal2,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_ideal3=net_cost_2_expanded(pmat_ideal3,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3)
+)
+                                   #cost_pmat_try=net_cost_2_try(pmat,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   #cost_pmat_ideal_try=net_cost_2_try(pmat_ideal,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   #cost_pmat_ideal2_try=net_cost_2_try(pmat_ideal2,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3)                       #)
+```
+
+
+```{r}
+nrow(data_params)
+```
+
+
+```{r}
+data_params=data_params %>% filter(tv_13>=tv_12 & tv_13>=tv_23 & tv_12+tv_23>=tv_13)
+nrow(data_params)
+```
+
+
+# Numerically testing which of the classification matrices can take the minimum value
+```{r}
+
+data_params = data_params %>% mutate(min_cost=pmin(cost_pmat_ideal1,cost_pmat_ideal2,cost_pmat_ideal3))
+```
+
+```{r}
+which(data_params$min_cost==data_params$cost_pmat_ideal3)
+```
+
+```{r}
+data_params[which(data_params$min_cost==data_params$cost_pmat_ideal3),]
+```
+
+```{r}
+data_params[which(data_params$min_cost==data_params$cost_pmat_ideal3)[1],]$pmat_ideal3
+```
+
+
+
+
+
+
+
+```{r}
+head(data_params)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+data_viol = data_params_samples %>% filter(cost_pmat< min_cost, (pmat[[1]][1,3] < pmat[[1]][2,3]), (pmat[[1]][2,3]< pmat[[1]][3,3]), (pmat[[1]][1,3]> pmat[[1]][3,3]-tv_13), (pmat[[1]][2,3] > pmat[[1]][3,3]-tv_23), (pmat[[1]][1,3] > pmat[[1]][2,3]-tv_12 ))
+
+
+data_viol = data_viol %>% mutate(flag13=(pmat[[1]][1,3] > pmat[[1]][3,3]-tv_13))
+
+data_viol = data_viol %>% filter(flag13==TRUE)
+data_viol[2,]$flag13
+data_viol[2,]$pmat
+data_viol[2,]$tv_13
+
+data_viol = data_viol %>% mutate(flag23=(pmat[[1]][2,3] > pmat[[1]][3,3]-tv_23))
+
+data_viol = data_viol %>% filter(flag23==TRUE)
+data_viol[2,]$flag23
+data_viol[2,]$pmat
+data_viol[2,]$tv_23
+
+data_viol = data_viol %>% mutate(flag12=(pmat[[1]][1,3] > pmat[[1]][2,3]-tv_12))
+
+data_viol = data_viol %>% filter(flag12==TRUE)
+data_viol[2,]$flag12
+data_viol[2,]$pmat
+data_viol[2,]$tv_13
+data_viol[2,]$tv_12
+data_viol[2,]$tv_23
+```
+
+```{r}
+names(data_viol)
+```
+```{r}
+class(data_viol)
+```
+
+
+
+```{r}
+distinct(data_viol[,1:9])
+
+```
+
+
+```{r}
+data_viol2=data_viol %>% group_by(lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3,tv_13,tv_12,tv_23,min_cost) %>% summarise(cost_pmat=min(cost_pmat)) %>% ungroup()
+
+```
+
+```{r}
+dat=left_join(data_viol2,data_viol,by="cost_pmat")
+```
+
+
+```{r}
+dat
+```
+
+```{r}
+truths=vector()
+for(i in 1:nrow(dat)){
+  truths[i]=(dat[i,]$pmat[[1]][3,3]-dat[i,]$pmat[[1]][1,3]<dat[i,]$tv_13.x) *(dat[i,]$pmat[[1]][2,3]-dat[i,]$pmat[[1]][1,3]<dat[i,]$tv_12.x)*(dat[i,]$pmat[[1]][3,3]-dat[i,]$pmat[[1]][2,3]<dat[i,]$tv_23.x)
+}
+truths
+```
+
+
+
+```{r}
+dat[1,]$pmat
+dat[1,]$tv_13.x
+dat[1,]$tv_12.x
+dat[1,]$tv_23.x
+
+
+```
+```{r}
+View(dat[8,])
+```
+
+
+
+```{r}
+
+data1=data_params %>% filter(cost_pmat_ideal==min_cost) 
+data2=data_params %>% filter(cost_pmat_ideal2==min_cost)
+data3=data_params %>% filter(cost_pmat_ideal3==min_cost)
+data4=data_params %>% filter(cost_pmat_ideal4==min_cost)
+data5=data_params %>% filter(cost_pmat_ideal5==min_cost)
+data6=data_params %>% filter(cost_pmat_ideal6==min_cost)
+data7=data_params %>% filter(cost_pmat_ideal7==min_cost)
+data8=data_params %>% filter(cost_pmat_ideal8==min_cost)
+data9=data_params %>% filter(cost_pmat_ideal9==min_cost)
+data10=data_params %>% filter(cost_pmat_ideal10==min_cost)
+data11=data_params %>% filter(cost_pmat_ideal11==min_cost)
+data12=data_params %>% filter(cost_pmat_ideal12==min_cost)
+data13=data_params %>% filter(cost_pmat_ideal13==min_cost)
+data14=data_params %>% filter(cost_optimal<min_cost)
+nrow(data1)
+nrow(data2)
+nrow(data3)
+nrow(data4)
+nrow(data5)
+nrow(data6)
+nrow(data7)
+nrow(data8)
+nrow(data9)
+nrow(data10)
+nrow(data11)
+nrow(data12)
+nrow(data13)
+nrow(data14)
+```
+
+
+```{r}
+```
+
+
+```{r}
+data_params[1,]
+```
+
+
+```{r}
+lambda1=data_params[1,]$lambda1
+lambda2=data_params[1,]$lambda2
+lambda3=data_params[1,]$lambda3
+service1=data_params[1,]$service1
+service2=data_params[1,]$service2
+service3=data_params[1,]$service3
+cost1=data_params[1,]$cost1
+cost2=data_params[1,]$cost2
+cost3==data_params[1,]$cost3
+tv_13=data_params[1,]$tv_13
+tv_12=data_params[1,]$tv_12
+tv_23=data_params[1,]$tv_23
+pmat_ideal=data_params[1,]$pmat_ideal[[1]]
+```
+
+
+
+```{r}
+pmat_ideal
+```
+
+```{r}
+net_cost_2(pmat_ideal,lamda = c(lambda1,lambda2,lambda3),service=c(service1,service2,service3),costs=c(cost1,cost2,cost3))
+```
+
+
+```{r}
+net_cost_2_expanded(ml_algo,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3)
+```
+
+
+
+
+# Check if Matrix one is dominated by any matrix: it is not
+
+```{r}
+max(data_params$cost_pmat_ideal2-data_params$cost_pmat_ideal)
+max(data_params$cost_pmat_ideal3-data_params$cost_pmat_ideal)
+max(data_params$cost_pmat_ideal4-data_params$cost_pmat_ideal)
+max(data_params$cost_pmat_ideal5-data_params$cost_pmat_ideal)
+max(data_params$cost_pmat_ideal6-data_params$cost_pmat_ideal)
+max(data_params$cost_pmat_ideal7-data_params$cost_pmat_ideal)
+```
+
+
+# Check if Matrix two is dominated by any matrix : it is by matrix 1
+
+```{r}
+max(data_params$cost_pmat_ideal-data_params$cost_pmat_ideal2)
+max(data_params$cost_pmat_ideal3-data_params$cost_pmat_ideal2)
+max(data_params$cost_pmat_ideal4-data_params$cost_pmat_ideal2)
+max(data_params$cost_pmat_ideal5-data_params$cost_pmat_ideal2)
+max(data_params$cost_pmat_ideal6-data_params$cost_pmat_ideal2)
+max(data_params$cost_pmat_ideal7-data_params$cost_pmat_ideal2)
+```
+
+
+# Check if Matrix three is dominated by any matrix : : it is by matrix 5 and 6
+
+
+```{r}
+max(data_params$cost_pmat_ideal-data_params$cost_pmat_ideal3)
+max(data_params$cost_pmat_ideal2-data_params$cost_pmat_ideal3)
+max(data_params$cost_pmat_ideal4-data_params$cost_pmat_ideal3)
+max(data_params$cost_pmat_ideal5-data_params$cost_pmat_ideal3)
+max(data_params$cost_pmat_ideal6-data_params$cost_pmat_ideal3)
+```
+
+
+# Check if Matrix four is dominated by any matrix : : it is not
+
+
+
+```{r}
+max(data_params$cost_pmat_ideal-data_params$cost_pmat_ideal4)
+max(data_params$cost_pmat_ideal2-data_params$cost_pmat_ideal4)
+max(data_params$cost_pmat_ideal3-data_params$cost_pmat_ideal4)
+max(data_params$cost_pmat_ideal5-data_params$cost_pmat_ideal4)
+max(data_params$cost_pmat_ideal6-data_params$cost_pmat_ideal4)
+max(data_params$cost_pmat_ideal7-data_params$cost_pmat_ideal4)
+```
+
+
+# Check if Matrix five is dominated by any matrix : : it is not
+
+```{r}
+max(data_params$cost_pmat_ideal-data_params$cost_pmat_ideal5)
+max(data_params$cost_pmat_ideal2-data_params$cost_pmat_ideal5)
+max(data_params$cost_pmat_ideal3-data_params$cost_pmat_ideal5)
+max(data_params$cost_pmat_ideal4-data_params$cost_pmat_ideal5)
+max(data_params$cost_pmat_ideal6-data_params$cost_pmat_ideal5)
+max(data_params$cost_pmat_ideal6-data_params$cost_pmat_ideal7)
+```
+
+# Check if Matrix six is dominated by any matrix : : it is not
+
+```{r}
+max(data_params$cost_pmat_ideal-data_params$cost_pmat_ideal6)
+max(data_params$cost_pmat_ideal2-data_params$cost_pmat_ideal6)
+max(data_params$cost_pmat_ideal3-data_params$cost_pmat_ideal6)
+max(data_params$cost_pmat_ideal4-data_params$cost_pmat_ideal6)
+max(data_params$cost_pmat_ideal5-data_params$cost_pmat_ideal6)
+max(data_params$cost_pmat_ideal7-data_params$cost_pmat_ideal6)
+max(data_params$cost_pmat_ideal8-data_params$cost_pmat_ideal6)
+max(data_params$cost_pmat_ideal9-data_params$cost_pmat_ideal6)
+max(data_params$cost_pmat_ideal10-data_params$cost_pmat_ideal6)
+```
+
+# Check if Matrix 7 is dominated by any matrix : : it is not
+
+```{r}
+max(data_params$cost_pmat_ideal-data_params$cost_pmat_ideal7)
+max(data_params$cost_pmat_ideal2-data_params$cost_pmat_ideal7)
+max(data_params$cost_pmat_ideal3-data_params$cost_pmat_ideal7)
+max(data_params$cost_pmat_ideal4-data_params$cost_pmat_ideal7)
+max(data_params$cost_pmat_ideal5-data_params$cost_pmat_ideal7)
+max(data_params$cost_pmat_ideal6-data_params$cost_pmat_ideal7)
+```
+
+
+
+
+# Check if Matrix 8 is dominated by any matrix : : it is not
+
+```{r}
+max(data_params$cost_pmat_ideal-data_params$cost_pmat_ideal8)
+max(data_params$cost_pmat_ideal2-data_params$cost_pmat_ideal8)
+max(data_params$cost_pmat_ideal3-data_params$cost_pmat_ideal8)
+max(data_params$cost_pmat_ideal4-data_params$cost_pmat_ideal8)
+max(data_params$cost_pmat_ideal5-data_params$cost_pmat_ideal8)
+max(data_params$cost_pmat_ideal6-data_params$cost_pmat_ideal8)
+max(data_params$cost_pmat_ideal7-data_params$cost_pmat_ideal8)
+```
+
+# Check if Matrix 9 is dominated by any matrix : : it is by mat 7 
+
+```{r}
+max(data_params$cost_pmat_ideal-data_params$cost_pmat_ideal9)
+max(data_params$cost_pmat_ideal2-data_params$cost_pmat_ideal9)
+max(data_params$cost_pmat_ideal3-data_params$cost_pmat_ideal9)
+max(data_params$cost_pmat_ideal4-data_params$cost_pmat_ideal9)
+max(data_params$cost_pmat_ideal5-data_params$cost_pmat_ideal9)
+max(data_params$cost_pmat_ideal6-data_params$cost_pmat_ideal9)
+max(data_params$cost_pmat_ideal7-data_params$cost_pmat_ideal9)
+max(data_params$cost_pmat_ideal8-data_params$cost_pmat_ideal9)
+max(data_params$cost_pmat_ideal10-data_params$cost_pmat_ideal9)
+```
+
+
+
+# Check if Matrix 10 is dominated by any matrix : : it is by mat 7 and mat 9 
+
+```{r}
+max(data_params$cost_pmat_ideal-data_params$cost_pmat_ideal10)
+max(data_params$cost_pmat_ideal2-data_params$cost_pmat_ideal10)
+max(data_params$cost_pmat_ideal3-data_params$cost_pmat_ideal10)
+max(data_params$cost_pmat_ideal4-data_params$cost_pmat_ideal10)
+max(data_params$cost_pmat_ideal5-data_params$cost_pmat_ideal10)
+max(data_params$cost_pmat_ideal6-data_params$cost_pmat_ideal10)
+max(data_params$cost_pmat_ideal7-data_params$cost_pmat_ideal10)
+max(data_params$cost_pmat_ideal8-data_params$cost_pmat_ideal10)
+max(data_params$cost_pmat_ideal9-data_params$cost_pmat_ideal10)
+```
+
+
+
+
+
+
+
+```{r}
+data_params[which.max(data_params$cost_pmat_ideal-data_params$cost_pmat_ideal4),]$pmat_ideal4
+```
+```{r}
+data_params[which.max(data_params$cost_pmat_ideal-data_params$cost_pmat_ideal4),]$pmat_ideal
+```
+
+```{r}
+data_params[which.max(data_params$cost_pmat_ideal-data_params$cost_pmat_ideal4),]$cost_pmat_ideal
+data_params[which.max(data_params$cost_pmat_ideal-data_params$cost_pmat_ideal4),]$cost_pmat_ideal4
+data_params[which.max(data_params$cost_pmat_ideal-data_params$cost_pmat_ideal4),]$cost1
+data_params[which.max(data_params$cost_pmat_ideal-data_params$cost_pmat_ideal4),]$cost2
+data_params[which.max(data_params$cost_pmat_ideal-data_params$cost_pmat_ideal4),]$cost3
+data_params[which.max(data_params$cost_pmat_ideal-data_params$cost_pmat_ideal4),]$tv_13
+data_params[which.max(data_params$cost_pmat_ideal-data_params$cost_pmat_ideal4),]$tv_23
+data_params[which.max(data_params$cost_pmat_ideal-data_params$cost_pmat_ideal4),]$tv_12
+data_params[which.max(data_params$cost_pmat_ideal-data_params$cost_pmat_ideal4),]$lambda1/data_params[which.max(data_params$cost_pmat_ideal-data_params$cost_pmat_ideal4),]$service1
+data_params[which.max(data_params$cost_pmat_ideal-data_params$cost_pmat_ideal4),]$lambda2/data_params[which.max(data_params$cost_pmat_ideal-data_params$cost_pmat_ideal4),]$service2
+data_params[which.max(data_params$cost_pmat_ideal-data_params$cost_pmat_ideal4),]$lambda3/data_params[which.max(data_params$cost_pmat_ideal-data_params$cost_pmat_ideal4),]$service3
+```
+
+
+
+
+```{r}
+data_params[which.max(data_params$cost_pmat_ideal4-data_params$cost_pmat_ideal),]$pmat_ideal4
+```
+
+
+```{r}
+data_params[which.max(data_params$cost_pmat_ideal4-data_params$cost_pmat_ideal),]$pmat_ideal
+```
+
+
+
+```{r}
+data_params[which.max(data_params$cost_pmat_ideal4-data_params$cost_pmat_ideal),]$cost_pmat_ideal
+data_params[which.max(data_params$cost_pmat_ideal4-data_params$cost_pmat_ideal),]$cost_pmat_ideal4
+data_params[which.max(data_params$cost_pmat_ideal4-data_params$cost_pmat_ideal),]$cost1
+data_params[which.max(data_params$cost_pmat_ideal4-data_params$cost_pmat_ideal),]$cost2
+data_params[which.max(data_params$cost_pmat_ideal4-data_params$cost_pmat_ideal),]$cost3
+data_params[which.max(data_params$cost_pmat_ideal4-data_params$cost_pmat_ideal),]$tv_13
+data_params[which.max(data_params$cost_pmat_ideal4-data_params$cost_pmat_ideal),]$tv_23
+data_params[which.max(data_params$cost_pmat_ideal4-data_params$cost_pmat_ideal),]$tv_12
+data_params[which.max(data_params$cost_pmat_ideal4-data_params$cost_pmat_ideal),]$lambda1/data_params[which.max(data_params$cost_pmat_ideal4-data_params$cost_pmat_ideal),]$service1
+data_params[which.max(data_params$cost_pmat_ideal4-data_params$cost_pmat_ideal),]$lambda2/data_params[which.max(data_params$cost_pmat_ideal4-data_params$cost_pmat_ideal),]$service2
+data_params[which.max(data_params$cost_pmat_ideal4-data_params$cost_pmat_ideal),]$lambda3/data_params[which.max(data_params$cost_pmat_ideal4-data_params$cost_pmat_ideal),]$service3
+```
+
+
+
+
+# The above example shows 
+
+```{r}
+data_params[which.max(data_params$cost_pmat_ideal4-data_params$cost_pmat_ideal),]$pmat_ideal4
+```
+
+
+
+
+```{r}
+net_cost_2_expanded<-function(ml_algo,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3){
+den1=1-lambda1*ml_algo[1,1]/service1-lambda2*ml_algo[2,1]/service2-lambda3*ml_algo[3,1]/service3
+den2=den1-lambda1*ml_algo[1,2]/service1-lambda2*ml_algo[2,2]/service2-lambda3*ml_algo[3,2]/service3
+den3=den2-lambda1*ml_algo[1,3]/service1-lambda2*ml_algo[2,3]/service2-lambda3*ml_algo[3,3]/service3
+num1=cost1*lambda1*ml_algo[1,1]+cost2*lambda2*ml_algo[2,1]+cost3*lambda3*ml_algo[3,1]
+num2=cost1*lambda1*ml_algo[1,2]+cost2*lambda2*ml_algo[2,2]+cost3*lambda3*ml_algo[3,2]
+num3=cost1*lambda1*ml_algo[1,3]+cost2*lambda2*ml_algo[2,3]+cost3*lambda3*ml_algo[3,3]
+return((num1/den1+num2/(den1*den2)+num3/(den2*den3))*(lambda1/(service1^2)+lambda2/(service2^2)+lambda3/(service3^2)))
+}
+net_cost_2_expanded=Vectorize(net_cost_2_expanded)
+```
+
+
+```{r}
+classification_matrix_1=function(tv_13,tv_12,tv_23){
+  pmat=rbind(c(1,0,0),c(1-tv_12,tv_12,0),c(1-tv_13,tv_13-tv_23,tv_23))
+  return(as.matrix(pmat))
+  }
+classification_matrix_1=Vectorize(classification_matrix_1, SIMPLIFY = FALSE)
+
+
+
+classification_matrix_2=function(tv_13,tv_12,tv_23){
+  pmat=rbind(c(tv_13,1-tv_13,0),c(tv_23,1-tv_13,tv_13-tv_23),c(0,1-tv_13,tv_13))
+  return(as.matrix(pmat))
+  }
+classification_matrix_2=Vectorize(classification_matrix_2, SIMPLIFY = FALSE)
+
+
+classification_matrix_3=function(tv_13,tv_12,tv_23){
+  pmat=rbind(c(tv_13,1-tv_13,0),c(tv_13-tv_12,1-tv_13+tv_12,0),c(0,1-tv_23,tv_23))
+  return(as.matrix(pmat))
+  }
+classification_matrix_3=Vectorize(classification_matrix_3, SIMPLIFY = FALSE)
+
+classification_matrix_4=function(tv_13,tv_12,tv_23){
+  pmat=rbind(c(tv_13,1-tv_13,0),c(tv_13-tv_12,1-2*tv_13+tv_12+tv_23,tv_13-tv_23),c(0,1-tv_13,tv_13))
+  return(as.matrix(pmat))
+  }
+classification_matrix_4=Vectorize(classification_matrix_4, SIMPLIFY = FALSE)
+
+
+
+classification_matrix_5=function(tv_13,tv_12,tv_23){
+  pmat=rbind(c(tv_12,1-tv_12,0),c(0,1-tv_13+tv_23,tv_13-tv_23),c(0,1-tv_13,tv_13))
+  return(as.matrix(pmat))
+  }
+classification_matrix_5=Vectorize(classification_matrix_5, SIMPLIFY = FALSE)
+```
+
+# Numerical Experiments case 1:
+
+```{r}
+tv_13=0.9
+tv_12=0.6
+tv_23=0.6
+cost3=1
+cost2=2
+cost1=seq(2.05,20,0.05)
+rho=0.9
+p1=0.2
+p2=0.3
+p3=0.5
+lambda1=p1
+lambda2=p2
+lambda3=p3
+service1=(lambda1+lambda2+lambda3)/rho
+service2=(lambda1+lambda2+lambda3)/rho
+service3=(lambda1+lambda2+lambda3)/rho
+data_params=as.data.frame(cbind(lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3,tv_13,tv_12,tv_23))
+```
+
+
+
+
+
+```{r}
+data_params <- data_params %>% mutate(pmat_1=classification_matrix_1(tv_13,tv_12,tv_23),
+                                      pmat_2=classification_matrix_2(tv_13,tv_12,tv_23),
+                                      pmat_3=classification_matrix_3(tv_13,tv_12,tv_23),
+                                      pmat_4=classification_matrix_4(tv_13,tv_12,tv_23),
+                                      pmat_5=classification_matrix_5(tv_13,tv_12,tv_23)
+)
+```
+
+
+
+```{r}
+data_params = data_params %>% mutate(
+                                   cost_pmat_1=net_cost_2_expanded(pmat_1,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_2=net_cost_2_expanded(pmat_2,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_3=net_cost_2_expanded(pmat_3,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_4=net_cost_2_expanded(pmat_4,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_5=net_cost_2_expanded(pmat_5,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3))
+```
+
+
+
+```{r}
+data_params = data_params %>%
+ pivot_longer(
+   cols = c(cost_pmat_1,cost_pmat_2,cost_pmat_3,cost_pmat_4,cost_pmat_5),
+   names_to = "Classification Matrix",
+   values_to = "Average Waiting Cost",
+ )
+```
+
+
+```{r}
+ggplot(data = data_params,aes(x=cost1,y=`Average Waiting Cost`,color=`Classification Matrix`)) +
+  geom_line() 
+
+```
+
+
+```{r}
+ggsave("case1.pdf")
+```
+
+
+
+```{r}
+t(as.matrix(rho*c(p1,p2,p3))) %*% as.matrix(data_params[1,]$pmat_1)[[1]] 
+t(as.matrix(rho*c(p1,p2,p3))) %*% as.matrix(data_params[1,]$pmat_3)[[1]] 
+```
+
+
+
+
+
+
+
+# Numerical Experiments case 9:
+
+```{r}
+tv_13=0.9
+tv_12=0.6
+tv_23=0.6
+cost3=1
+cost2=2
+cost1=seq(2.05,20,0.05)
+rho=0.9
+p1=1/3
+p2=1/3
+p3=1/3
+lambda1=p1
+lambda2=p2
+lambda3=p3
+service1=(lambda1+lambda2+lambda3)/rho
+service2=(lambda1+lambda2+lambda3)/rho
+service3=(lambda1+lambda2+lambda3)/rho
+data_params=as.data.frame(cbind(lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3,tv_13,tv_12,tv_23))
+```
+
+
+
+
+
+```{r}
+data_params <- data_params %>% mutate(pmat_1=classification_matrix_1(tv_13,tv_12,tv_23),
+                                      pmat_2=classification_matrix_2(tv_13,tv_12,tv_23),
+                                      pmat_3=classification_matrix_3(tv_13,tv_12,tv_23),
+                                      pmat_4=classification_matrix_4(tv_13,tv_12,tv_23),
+                                      pmat_5=classification_matrix_5(tv_13,tv_12,tv_23)
+)
+```
+
+
+
+```{r}
+data_params = data_params %>% mutate(
+                                   cost_pmat_1=net_cost_2_expanded(pmat_1,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_2=net_cost_2_expanded(pmat_2,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_3=net_cost_2_expanded(pmat_3,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_4=net_cost_2_expanded(pmat_4,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_5=net_cost_2_expanded(pmat_5,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3))
+```
+
+
+
+```{r}
+data_params = data_params %>%
+ pivot_longer(
+   cols = c(cost_pmat_1,cost_pmat_2,cost_pmat_3,cost_pmat_4,cost_pmat_5),
+   names_to = "Classification Matrix",
+   values_to = "Average Waiting Cost",
+ )
+
+```
+
+
+```{r}
+ggplot(data = data_params,aes(x=cost1,y=`Average Waiting Cost`,color=`Classification Matrix`)) +
+  geom_line() 
+
+```
+
+
+```{r}
+t(as.matrix(rho*c(p1,p2,p3))) %*% as.matrix(data_params[1,]$pmat_3)[[1]] 
+t(as.matrix(rho*c(p1,p2,p3))) %*% as.matrix(data_params[1,]$pmat_1)[[1]] 
+```
+
+```{r}
+ggsave("case9.pdf")
+```
+
+
+
+
+# Numerical Experiments case 2:
+
+```{r}
+tv_13=0.9
+tv_12=0.85
+tv_23=0.10
+cost3=1
+cost2=2
+cost1=seq(2.05,20,0.05)
+rho=0.9
+p1=0.2
+p2=0.3
+p3=0.5
+lambda1=p1
+lambda2=p2
+lambda3=p3
+service1=(lambda1+lambda2+lambda3)/rho
+service2=(lambda1+lambda2+lambda3)/rho
+service3=(lambda1+lambda2+lambda3)/rho
+data_params=as.data.frame(cbind(lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3,tv_13,tv_12,tv_23))
+```
+
+
+
+
+```{r}
+classification_matrix_1=function(tv_13,tv_12,tv_23){
+  pmat=rbind(c(1,0,0),c(1-tv_12,tv_12,0),c(1-tv_13,tv_13-tv_23,tv_23))
+  return(as.matrix(pmat))
+  }
+classification_matrix_1=Vectorize(classification_matrix_1, SIMPLIFY = FALSE)
+
+
+
+classification_matrix_2=function(tv_13,tv_12,tv_23){
+  pmat=rbind(c(tv_13,1-tv_13,0),c(tv_23,1-tv_13,tv_13-tv_23),c(0,1-tv_13,tv_13))
+  return(as.matrix(pmat))
+  }
+classification_matrix_2=Vectorize(classification_matrix_2, SIMPLIFY = FALSE)
+
+
+classification_matrix_3=function(tv_13,tv_12,tv_23){
+  pmat=rbind(c(tv_13,1-tv_13,0),c(tv_13-tv_12,1-tv_13+tv_12,0),c(0,1-tv_23,tv_23))
+  return(as.matrix(pmat))
+  }
+classification_matrix_3=Vectorize(classification_matrix_3, SIMPLIFY = FALSE)
+
+classification_matrix_4=function(tv_13,tv_12,tv_23){
+  pmat=rbind(c(tv_13,1-tv_13,0),c(tv_13-tv_12,1-2*tv_13+tv_12+tv_23,tv_13-tv_23),c(0,1-tv_13,tv_13))
+  return(as.matrix(pmat))
+  }
+classification_matrix_4=Vectorize(classification_matrix_4, SIMPLIFY = FALSE)
+
+
+
+classification_matrix_5=function(tv_13,tv_12,tv_23){
+  pmat=rbind(c(tv_12,1-tv_12,0),c(0,1-tv_13+tv_23,tv_13-tv_23),c(0,1-tv_13,tv_13))
+  return(as.matrix(pmat))
+  }
+classification_matrix_5=Vectorize(classification_matrix_5, SIMPLIFY = FALSE)
+```
+
+```{r}
+data_params <- data_params %>% mutate(pmat_1=classification_matrix_1(tv_13,tv_12,tv_23),
+                                      pmat_2=classification_matrix_2(tv_13,tv_12,tv_23),
+                                      pmat_3=classification_matrix_3(tv_13,tv_12,tv_23),
+                                      pmat_4=classification_matrix_4(tv_13,tv_12,tv_23),
+                                      pmat_5=classification_matrix_5(tv_13,tv_12,tv_23)
+)
+```
+
+
+
+```{r}
+data_params = data_params %>% mutate(
+                                   cost_pmat_1=net_cost_2_expanded(pmat_1,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_2=net_cost_2_expanded(pmat_2,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_3=net_cost_2_expanded(pmat_3,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_4=net_cost_2_expanded(pmat_4,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_5=net_cost_2_expanded(pmat_5,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3))
+```
+
+
+
+```{r}
+data_params = data_params %>%
+ pivot_longer(
+   cols = c(cost_pmat_1,cost_pmat_2,cost_pmat_3,cost_pmat_4,cost_pmat_5),
+   names_to = "Classification Matrix",
+   values_to = "Average Waiting Cost",
+ )
+```
+
+
+```{r}
+ggplot(data = data_params,aes(x=cost1,y=`Average Waiting Cost`,color=`Classification Matrix`)) +
+  geom_line() 
+
+```
+
+```{r}
+ggsave("case2.pdf")
+```
+
+```{r}
+t(as.matrix(rho*c(p1,p2,p3))) %*% as.matrix(data_params[1,]$pmat_1)[[1]] 
+
+```
+
+
+
+
+
+
+
+# Numerical Experiments case 10:
+
+```{r}
+tv_13=0.9
+tv_12=0.85
+tv_23=0.10
+cost3=1
+cost2=2
+cost1=seq(2.05,20,0.05)
+rho=0.9
+p1=1/3
+p2=1/3
+p3=1/3
+lambda1=p1
+lambda2=p2
+lambda3=p3
+service1=(lambda1+lambda2+lambda3)/rho
+service2=(lambda1+lambda2+lambda3)/rho
+service3=(lambda1+lambda2+lambda3)/rho
+data_params=as.data.frame(cbind(lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3,tv_13,tv_12,tv_23))
+```
+
+
+
+
+```{r}
+classification_matrix_1=function(tv_13,tv_12,tv_23){
+  pmat=rbind(c(1,0,0),c(1-tv_12,tv_12,0),c(1-tv_13,tv_13-tv_23,tv_23))
+  return(as.matrix(pmat))
+  }
+classification_matrix_1=Vectorize(classification_matrix_1, SIMPLIFY = FALSE)
+
+
+
+classification_matrix_2=function(tv_13,tv_12,tv_23){
+  pmat=rbind(c(tv_13,1-tv_13,0),c(tv_23,1-tv_13,tv_13-tv_23),c(0,1-tv_13,tv_13))
+  return(as.matrix(pmat))
+  }
+classification_matrix_2=Vectorize(classification_matrix_2, SIMPLIFY = FALSE)
+
+
+classification_matrix_3=function(tv_13,tv_12,tv_23){
+  pmat=rbind(c(tv_13,1-tv_13,0),c(tv_13-tv_12,1-tv_13+tv_12,0),c(0,1-tv_23,tv_23))
+  return(as.matrix(pmat))
+  }
+classification_matrix_3=Vectorize(classification_matrix_3, SIMPLIFY = FALSE)
+
+classification_matrix_4=function(tv_13,tv_12,tv_23){
+  pmat=rbind(c(tv_13,1-tv_13,0),c(tv_13-tv_12,1-2*tv_13+tv_12+tv_23,tv_13-tv_23),c(0,1-tv_13,tv_13))
+  return(as.matrix(pmat))
+  }
+classification_matrix_4=Vectorize(classification_matrix_4, SIMPLIFY = FALSE)
+
+
+
+classification_matrix_5=function(tv_13,tv_12,tv_23){
+  pmat=rbind(c(tv_12,1-tv_12,0),c(0,1-tv_13+tv_23,tv_13-tv_23),c(0,1-tv_13,tv_13))
+  return(as.matrix(pmat))
+  }
+classification_matrix_5=Vectorize(classification_matrix_5, SIMPLIFY = FALSE)
+```
+
+```{r}
+data_params <- data_params %>% mutate(pmat_1=classification_matrix_1(tv_13,tv_12,tv_23),
+                                      pmat_2=classification_matrix_2(tv_13,tv_12,tv_23),
+                                      pmat_3=classification_matrix_3(tv_13,tv_12,tv_23),
+                                      pmat_4=classification_matrix_4(tv_13,tv_12,tv_23),
+                                      pmat_5=classification_matrix_5(tv_13,tv_12,tv_23)
+)
+```
+
+
+
+```{r}
+data_params = data_params %>% mutate(
+                                   cost_pmat_1=net_cost_2_expanded(pmat_1,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_2=net_cost_2_expanded(pmat_2,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_3=net_cost_2_expanded(pmat_3,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_4=net_cost_2_expanded(pmat_4,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_5=net_cost_2_expanded(pmat_5,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3))
+```
+
+
+
+```{r}
+data_params = data_params %>%
+ pivot_longer(
+   cols = c(cost_pmat_1,cost_pmat_2,cost_pmat_3,cost_pmat_4,cost_pmat_5),
+   names_to = "Classification Matrix",
+   values_to = "Average Waiting Cost",
+ )
+```
+
+
+```{r}
+ggplot(data = data_params,aes(x=cost1,y=`Average Waiting Cost`,color=`Classification Matrix`)) +
+  geom_line() 
+
+```
+
+
+```{r}
+ggsave("case10.pdf")
+```
+
+```{r}
+t(as.matrix(rho*c(p1,p2,p3))) %*% as.matrix(data_params[1,]$pmat_1)[[1]] 
+
+```
+
+
+
+
+# Numerical Experiments case 3:
+
+```{r}
+tv_13=0.9
+tv_12=0.10
+tv_23=0.85
+cost3=1
+cost2=2
+cost1=seq(2.05,20,0.05)
+rho=0.9
+p1=0.2
+p2=0.3
+p3=0.5
+lambda1=p1
+lambda2=p2
+lambda3=p3
+service1=(lambda1+lambda2+lambda3)/rho
+service2=(lambda1+lambda2+lambda3)/rho
+service3=(lambda1+lambda2+lambda3)/rho
+data_params=as.data.frame(cbind(lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3,tv_13,tv_12,tv_23))
+```
+
+
+```{r}
+data_params <- data_params %>% mutate(pmat_1=classification_matrix_1(tv_13,tv_12,tv_23),
+                                      pmat_2=classification_matrix_2(tv_13,tv_12,tv_23),
+                                      pmat_3=classification_matrix_3(tv_13,tv_12,tv_23),
+                                      pmat_4=classification_matrix_4(tv_13,tv_12,tv_23),
+                                      pmat_5=classification_matrix_5(tv_13,tv_12,tv_23)
+)
+```
+
+
+
+```{r}
+data_params = data_params %>% mutate(
+                                   cost_pmat_1=net_cost_2_expanded(pmat_1,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_2=net_cost_2_expanded(pmat_2,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_3=net_cost_2_expanded(pmat_3,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_4=net_cost_2_expanded(pmat_4,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_5=net_cost_2_expanded(pmat_5,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3))
+```
+
+
+
+```{r}
+data_params = data_params %>%
+ pivot_longer(
+   cols = c(cost_pmat_1,cost_pmat_2,cost_pmat_3,cost_pmat_4,cost_pmat_5),
+   names_to = "Classification Matrix",
+   values_to = "Average Waiting Cost",
+ )
+```
+
+
+```{r}
+ggplot(data = data_params,aes(x=cost1,y=`Average Waiting Cost`,color=`Classification Matrix`)) +
+  geom_line() 
+
+```
+
+```{r}
+ggsave("case3.pdf")
+```
+
+
+
+
+```{r}
+t(as.matrix(rho*c(p1,p2,p3))) %*% as.matrix(data_params[1,]$pmat_1)[[1]] 
+```
+
+
+# Numerical Experiments case 11:
+
+```{r}
+tv_13=0.90
+tv_12=0.10
+tv_23=0.85
+cost3=1
+cost2=2
+cost1=seq(2.05,20,0.05)
+rho=0.9
+p1=1/3
+p2=1/3
+p3=1/3
+lambda1=p1
+lambda2=p2
+lambda3=p3
+service1=(lambda1+lambda2+lambda3)/rho
+service2=(lambda1+lambda2+lambda3)/rho
+service3=(lambda1+lambda2+lambda3)/rho
+data_params=as.data.frame(cbind(lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3,tv_13,tv_12,tv_23))
+```
+
+
+```{r}
+data_params <- data_params %>% mutate(pmat_1=classification_matrix_1(tv_13,tv_12,tv_23),
+                                      pmat_2=classification_matrix_2(tv_13,tv_12,tv_23),
+                                      pmat_3=classification_matrix_3(tv_13,tv_12,tv_23),
+                                      pmat_4=classification_matrix_4(tv_13,tv_12,tv_23),
+                                      pmat_5=classification_matrix_5(tv_13,tv_12,tv_23)
+)
+```
+
+
+
+```{r}
+data_params = data_params %>% mutate(
+                                   cost_pmat_1=net_cost_2_expanded(pmat_1,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_2=net_cost_2_expanded(pmat_2,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_3=net_cost_2_expanded(pmat_3,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_4=net_cost_2_expanded(pmat_4,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_5=net_cost_2_expanded(pmat_5,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3))
+```
+
+
+
+```{r}
+data_params = data_params %>%
+ pivot_longer(
+   cols = c(cost_pmat_1,cost_pmat_2,cost_pmat_3,cost_pmat_4,cost_pmat_5),
+   names_to = "Classification Matrix",
+   values_to = "Average Waiting Cost",
+ )
+```
+
+
+```{r}
+ggplot(data = data_params,aes(x=cost1,y=`Average Waiting Cost`,color=`Classification Matrix`)) +
+  geom_line() 
+
+```
+
+```{r}
+ggsave("case11.pdf")
+```
+
+
+
+
+```{r}
+t(as.matrix(rho*c(p1,p2,p3))) %*% as.matrix(data_params[1,]$pmat_1)[[1]] 
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Numerical Experiment Case 4
+```{r}
+tv_13=0.6
+tv_12=0.35
+tv_23=0.35
+cost3=1
+cost2=2
+cost1=seq(2.05,20,0.05)
+rho=0.9
+p1=0.2
+p2=0.3
+p3=0.5
+lambda1=p1
+lambda2=p2
+lambda3=p3
+service1=(lambda1+lambda2+lambda3)/rho
+service2=(lambda1+lambda2+lambda3)/rho
+service3=(lambda1+lambda2+lambda3)/rho
+data_params=as.data.frame(cbind(lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3,tv_13,tv_12,tv_23))
+```
+
+
+```{r}
+data_params <- data_params %>% mutate(pmat_1=classification_matrix_1(tv_13,tv_12,tv_23),
+                                      pmat_2=classification_matrix_2(tv_13,tv_12,tv_23),
+                                      pmat_3=classification_matrix_3(tv_13,tv_12,tv_23),
+                                      pmat_4=classification_matrix_4(tv_13,tv_12,tv_23),
+                                      pmat_5=classification_matrix_5(tv_13,tv_12,tv_23)
+)
+```
+
+
+
+```{r}
+data_params = data_params %>% mutate(
+                                   cost_pmat_1=net_cost_2_expanded(pmat_1,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_2=net_cost_2_expanded(pmat_2,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_3=net_cost_2_expanded(pmat_3,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_4=net_cost_2_expanded(pmat_4,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_5=net_cost_2_expanded(pmat_5,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3))
+```
+
+
+
+```{r}
+data_params = data_params %>%
+ pivot_longer(
+   cols = c(cost_pmat_1,cost_pmat_2,cost_pmat_3,cost_pmat_4,cost_pmat_5),
+   names_to = "Classification Matrix",
+   values_to = "Average Waiting Cost",
+ )
+```
+
+
+```{r}
+ggplot(data = data_params,aes(x=cost1,y=`Average Waiting Cost`,color=`Classification Matrix`)) +
+  geom_line() 
+```
+
+```{r}
+ggsave("case4.pdf")
+```
+
+
+```{r}
+t(as.matrix(rho*c(p1,p2,p3))) %*% as.matrix(data_params[1,]$pmat_3)[[1]] 
+t(as.matrix(rho*c(p1,p2,p3))) %*% as.matrix(data_params[1,]$pmat_1)[[1]] 
+t(as.matrix(rho*c(p1,p2,p3))) %*% as.matrix(data_params[1,]$pmat_4)[[1]] 
+```
+
+
+
+
+# Numerical Experiment Case 12
+```{r}
+tv_13=0.6
+tv_12=0.35
+tv_23=0.35
+cost3=1
+cost2=2
+cost1=seq(2.05,20,0.05)
+rho=0.9
+p1=1/3
+p2=1/3
+p3=1/3
+lambda1=p1
+lambda2=p2
+lambda3=p3
+service1=(lambda1+lambda2+lambda3)/rho
+service2=(lambda1+lambda2+lambda3)/rho
+service3=(lambda1+lambda2+lambda3)/rho
+data_params=as.data.frame(cbind(lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3,tv_13,tv_12,tv_23))
+```
+
+
+```{r}
+data_params <- data_params %>% mutate(pmat_1=classification_matrix_1(tv_13,tv_12,tv_23),
+                                      pmat_2=classification_matrix_2(tv_13,tv_12,tv_23),
+                                      pmat_3=classification_matrix_3(tv_13,tv_12,tv_23),
+                                      pmat_4=classification_matrix_4(tv_13,tv_12,tv_23),
+                                      pmat_5=classification_matrix_5(tv_13,tv_12,tv_23)
+)
+```
+
+
+
+```{r}
+data_params = data_params %>% mutate(
+                                   cost_pmat_1=net_cost_2_expanded(pmat_1,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_2=net_cost_2_expanded(pmat_2,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_3=net_cost_2_expanded(pmat_3,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_4=net_cost_2_expanded(pmat_4,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_5=net_cost_2_expanded(pmat_5,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3))
+```
+
+
+
+```{r}
+data_params = data_params %>%
+ pivot_longer(
+   cols = c(cost_pmat_1,cost_pmat_2,cost_pmat_3,cost_pmat_4,cost_pmat_5),
+   names_to = "Classification Matrix",
+   values_to = "Average Waiting Cost",
+ )
+```
+
+
+```{r}
+ggplot(data = data_params,aes(x=cost1,y=`Average Waiting Cost`,color=`Classification Matrix`)) +
+  geom_line() 
+```
+
+```{r}
+ggsave("case12.pdf")
+```
+
+
+```{r}
+t(as.matrix(rho*c(p1,p2,p3))) %*% as.matrix(data_params[1,]$pmat_1)[[1]] 
+t(as.matrix(rho*c(p1,p2,p3))) %*% as.matrix(data_params[1,]$pmat_3)[[1]] 
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Numerical Experiments case 5:
+
+```{r}
+tv_13=0.9
+tv_12=0.6
+tv_23=0.6
+cost3=1
+cost2=2
+cost1=seq(2.05,20,0.05)
+rho=0.6
+p1=0.2
+p2=0.3
+p3=0.5
+lambda1=p1
+lambda2=p2
+lambda3=p3
+service1=(lambda1+lambda2+lambda3)/rho
+service2=(lambda1+lambda2+lambda3)/rho
+service3=(lambda1+lambda2+lambda3)/rho
+data_params=as.data.frame(cbind(lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3,tv_13,tv_12,tv_23))
+```
+
+
+
+
+```{r}
+classification_matrix_1=function(tv_13,tv_12,tv_23){
+  pmat=rbind(c(1,0,0),c(1-tv_12,tv_12,0),c(1-tv_13,tv_13-tv_23,tv_23))
+  return(as.matrix(pmat))
+  }
+classification_matrix_1=Vectorize(classification_matrix_1, SIMPLIFY = FALSE)
+
+
+
+classification_matrix_2=function(tv_13,tv_12,tv_23){
+  pmat=rbind(c(tv_13,1-tv_13,0),c(tv_23,1-tv_13,tv_13-tv_23),c(0,1-tv_13,tv_13))
+  return(as.matrix(pmat))
+  }
+classification_matrix_2=Vectorize(classification_matrix_2, SIMPLIFY = FALSE)
+
+
+classification_matrix_3=function(tv_13,tv_12,tv_23){
+  pmat=rbind(c(tv_13,1-tv_13,0),c(tv_13-tv_12,1-tv_13+tv_12,0),c(0,1-tv_23,tv_23))
+  return(as.matrix(pmat))
+  }
+classification_matrix_3=Vectorize(classification_matrix_3, SIMPLIFY = FALSE)
+
+classification_matrix_4=function(tv_13,tv_12,tv_23){
+  pmat=rbind(c(tv_13,1-tv_13,0),c(tv_13-tv_12,1-2*tv_13+tv_12+tv_23,tv_13-tv_23),c(0,1-tv_13,tv_13))
+  return(as.matrix(pmat))
+  }
+classification_matrix_4=Vectorize(classification_matrix_4, SIMPLIFY = FALSE)
+
+
+
+classification_matrix_5=function(tv_13,tv_12,tv_23){
+  pmat=rbind(c(tv_12,1-tv_12,0),c(0,1-tv_13+tv_23,tv_13-tv_23),c(0,1-tv_13,tv_13))
+  return(as.matrix(pmat))
+  }
+classification_matrix_5=Vectorize(classification_matrix_5, SIMPLIFY = FALSE)
+```
+
+```{r}
+data_params <- data_params %>% mutate(pmat_1=classification_matrix_1(tv_13,tv_12,tv_23),
+                                      pmat_2=classification_matrix_2(tv_13,tv_12,tv_23),
+                                      pmat_3=classification_matrix_3(tv_13,tv_12,tv_23),
+                                      pmat_4=classification_matrix_4(tv_13,tv_12,tv_23),
+                                      pmat_5=classification_matrix_5(tv_13,tv_12,tv_23)
+)
+```
+
+
+
+```{r}
+data_params = data_params %>% mutate(
+                                   cost_pmat_1=net_cost_2_expanded(pmat_1,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_2=net_cost_2_expanded(pmat_2,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_3=net_cost_2_expanded(pmat_3,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_4=net_cost_2_expanded(pmat_4,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_5=net_cost_2_expanded(pmat_5,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3))
+```
+
+
+
+```{r}
+data_params = data_params %>%
+ pivot_longer(
+   cols = c(cost_pmat_1,cost_pmat_2,cost_pmat_3,cost_pmat_4,cost_pmat_5),
+   names_to = "Classification Matrix",
+   values_to = "Average Waiting Cost",
+ )
+```
+
+
+```{r}
+ggplot(data = data_params,aes(x=cost1,y=`Average Waiting Cost`,color=`Classification Matrix`)) +
+  geom_line() 
+
+```
+```{r}
+ggsave("case5.pdf")
+```
+
+
+
+
+```{r}
+t(as.matrix(rho*c(p1,p2,p3))) %*% as.matrix(data_params[1,]$pmat_3)[[1]] 
+t(as.matrix(rho*c(p1,p2,p3))) %*% as.matrix(data_params[1,]$pmat_4)[[1]] 
+```
+
+
+
+# Numerical Experiments case 13:
+
+```{r}
+tv_13=0.9
+tv_12=0.6
+tv_23=0.6
+cost3=1
+cost2=2
+cost1=seq(2.05,20,0.05)
+rho=0.6
+p1=1/3
+p2=1/3
+p3=1/3
+lambda1=p1
+lambda2=p2
+lambda3=p3
+service1=(lambda1+lambda2+lambda3)/rho
+service2=(lambda1+lambda2+lambda3)/rho
+service3=(lambda1+lambda2+lambda3)/rho
+data_params=as.data.frame(cbind(lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3,tv_13,tv_12,tv_23))
+```
+
+
+
+```{r}
+data_params <- data_params %>% mutate(pmat_1=classification_matrix_1(tv_13,tv_12,tv_23),
+                                      pmat_2=classification_matrix_2(tv_13,tv_12,tv_23),
+                                      pmat_3=classification_matrix_3(tv_13,tv_12,tv_23),
+                                      pmat_4=classification_matrix_4(tv_13,tv_12,tv_23),
+                                      pmat_5=classification_matrix_5(tv_13,tv_12,tv_23)
+)
+```
+
+
+
+```{r}
+data_params = data_params %>% mutate(
+                                   cost_pmat_1=net_cost_2_expanded(pmat_1,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_2=net_cost_2_expanded(pmat_2,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_3=net_cost_2_expanded(pmat_3,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_4=net_cost_2_expanded(pmat_4,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_5=net_cost_2_expanded(pmat_5,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3))
+```
+
+
+
+```{r}
+data_params = data_params %>%
+ pivot_longer(
+   cols = c(cost_pmat_1,cost_pmat_2,cost_pmat_3,cost_pmat_4,cost_pmat_5),
+   names_to = "Classification Matrix",
+   values_to = "Average Waiting Cost",
+ )
+```
+
+
+```{r}
+ggplot(data = data_params,aes(x=cost1,y=`Average Waiting Cost`,color=`Classification Matrix`)) +
+  geom_line() 
+
+```
+```{r}
+ggsave("case13.pdf")
+```
+
+
+
+
+```{r}
+t(as.matrix(rho*c(p1,p2,p3))) %*% as.matrix(data_params[1,]$pmat_3)[[1]] 
+t(as.matrix(rho*c(p1,p2,p3))) %*% as.matrix(data_params[1,]$pmat_4)[[1]] 
+```
+# Numerical Experiments case 6:
+
+```{r}
+tv_13=0.9
+tv_12=0.85
+tv_23=0.10
+cost3=1
+cost2=2
+cost1=seq(2.05,20,0.05)
+rho=0.6
+p1=0.2
+p2=0.3
+p3=0.5
+lambda1=p1
+lambda2=p2
+lambda3=p3
+service1=(lambda1+lambda2+lambda3)/rho
+service2=(lambda1+lambda2+lambda3)/rho
+service3=(lambda1+lambda2+lambda3)/rho
+data_params=as.data.frame(cbind(lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3,tv_13,tv_12,tv_23))
+```
+
+
+
+
+```{r}
+classification_matrix_1=function(tv_13,tv_12,tv_23){
+  pmat=rbind(c(1,0,0),c(1-tv_12,tv_12,0),c(1-tv_13,tv_13-tv_23,tv_23))
+  return(as.matrix(pmat))
+  }
+classification_matrix_1=Vectorize(classification_matrix_1, SIMPLIFY = FALSE)
+
+
+
+classification_matrix_2=function(tv_13,tv_12,tv_23){
+  pmat=rbind(c(tv_13,1-tv_13,0),c(tv_23,1-tv_13,tv_13-tv_23),c(0,1-tv_13,tv_13))
+  return(as.matrix(pmat))
+  }
+classification_matrix_2=Vectorize(classification_matrix_2, SIMPLIFY = FALSE)
+
+
+classification_matrix_3=function(tv_13,tv_12,tv_23){
+  pmat=rbind(c(tv_13,1-tv_13,0),c(tv_13-tv_12,1-tv_13+tv_12,0),c(0,1-tv_23,tv_23))
+  return(as.matrix(pmat))
+  }
+classification_matrix_3=Vectorize(classification_matrix_3, SIMPLIFY = FALSE)
+
+classification_matrix_4=function(tv_13,tv_12,tv_23){
+  pmat=rbind(c(tv_13,1-tv_13,0),c(tv_13-tv_12,1-2*tv_13+tv_12+tv_23,tv_13-tv_23),c(0,1-tv_13,tv_13))
+  return(as.matrix(pmat))
+  }
+classification_matrix_4=Vectorize(classification_matrix_4, SIMPLIFY = FALSE)
+
+
+
+classification_matrix_5=function(tv_13,tv_12,tv_23){
+  pmat=rbind(c(tv_12,1-tv_12,0),c(0,1-tv_13+tv_23,tv_13-tv_23),c(0,1-tv_13,tv_13))
+  return(as.matrix(pmat))
+  }
+classification_matrix_5=Vectorize(classification_matrix_5, SIMPLIFY = FALSE)
+```
+
+```{r}
+data_params <- data_params %>% mutate(pmat_1=classification_matrix_1(tv_13,tv_12,tv_23),
+                                      pmat_2=classification_matrix_2(tv_13,tv_12,tv_23),
+                                      pmat_3=classification_matrix_3(tv_13,tv_12,tv_23),
+                                      pmat_4=classification_matrix_4(tv_13,tv_12,tv_23),
+                                      pmat_5=classification_matrix_5(tv_13,tv_12,tv_23)
+)
+```
+
+
+
+```{r}
+data_params = data_params %>% mutate(
+                                   cost_pmat_1=net_cost_2_expanded(pmat_1,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_2=net_cost_2_expanded(pmat_2,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_3=net_cost_2_expanded(pmat_3,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_4=net_cost_2_expanded(pmat_4,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_5=net_cost_2_expanded(pmat_5,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3))
+```
+
+
+
+```{r}
+data_params = data_params %>%
+ pivot_longer(
+   cols = c(cost_pmat_1,cost_pmat_2,cost_pmat_3,cost_pmat_4,cost_pmat_5),
+   names_to = "Classification Matrix",
+   values_to = "Average Waiting Cost",
+ )
+```
+
+
+```{r}
+ggplot(data = data_params,aes(x=cost1,y=`Average Waiting Cost`,color=`Classification Matrix`)) +
+  geom_line() 
+
+```
+
+```{r}
+t(as.matrix(rho*c(p1,p2,p3))) %*% as.matrix(data_params[1,]$pmat_1)[[1]] 
+t(as.matrix(rho*c(p1,p2,p3))) %*% as.matrix(data_params[1,]$pmat_5)[[1]] 
+```
+
+
+# Numerical Experiments case 7:
+
+```{r}
+tv_13=0.9
+tv_12=0.10
+tv_23=0.85
+cost3=1
+cost2=2
+cost1=seq(2.05,20,0.05)
+rho=0.6
+p1=0.2
+p2=0.3
+p3=0.5
+lambda1=p1
+lambda2=p2
+lambda3=p3
+service1=(lambda1+lambda2+lambda3)/rho
+service2=(lambda1+lambda2+lambda3)/rho
+service3=(lambda1+lambda2+lambda3)/rho
+data_params=as.data.frame(cbind(lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3,tv_13,tv_12,tv_23))
+```
+
+
+
+
+
+
+
+```{r}
+data_params <- data_params %>% mutate(pmat_1=classification_matrix_1(tv_13,tv_12,tv_23),
+                                      pmat_2=classification_matrix_2(tv_13,tv_12,tv_23),
+                                      pmat_3=classification_matrix_3(tv_13,tv_12,tv_23),
+                                      pmat_4=classification_matrix_4(tv_13,tv_12,tv_23),
+                                      pmat_5=classification_matrix_5(tv_13,tv_12,tv_23)
+)
+```
+
+
+
+```{r}
+data_params = data_params %>% mutate(
+                                   cost_pmat_1=net_cost_2_expanded(pmat_1,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_2=net_cost_2_expanded(pmat_2,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_3=net_cost_2_expanded(pmat_3,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_4=net_cost_2_expanded(pmat_4,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_5=net_cost_2_expanded(pmat_5,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3))
+```
+
+
+
+```{r}
+data_params = data_params %>%
+ pivot_longer(
+   cols = c(cost_pmat_1,cost_pmat_2,cost_pmat_3,cost_pmat_4,cost_pmat_5),
+   names_to = "Classification Matrix",
+   values_to = "Average Waiting Cost",
+ )
+```
+
+
+```{r}
+ggplot(data = data_params,aes(x=cost1,y=`Average Waiting Cost`,color=`Classification Matrix`)) +
+  geom_line() 
+
+```
+
+```{r}
+t(as.matrix(rho*c(p1,p2,p3))) %*% as.matrix(data_params[1,]$pmat_4)[[1]] 
+```
+
+
+```{r}
+tv_13=0.9
+tv_12=0.85
+tv_23=0.10
+cost3=1
+cost2=2
+cost1=seq(2.05,20,0.05)
+rho=0.6
+p1=1/3
+p2=1/3
+p3=1/3
+lambda1=p1
+lambda2=p2
+lambda3=p3
+service1=(lambda1+lambda2+lambda3)/rho
+service2=(lambda1+lambda2+lambda3)/rho
+service3=(lambda1+lambda2+lambda3)/rho
+data_params=as.data.frame(cbind(lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3,tv_13,tv_12,tv_23))
+```
+
+
+
+
+
+```{r}
+data_params <- data_params %>% mutate(pmat_1=classification_matrix_1(tv_13,tv_12,tv_23),
+                                      pmat_2=classification_matrix_2(tv_13,tv_12,tv_23),
+                                      pmat_3=classification_matrix_3(tv_13,tv_12,tv_23),
+                                      pmat_4=classification_matrix_4(tv_13,tv_12,tv_23),
+                                      pmat_5=classification_matrix_5(tv_13,tv_12,tv_23)
+)
+```
+
+
+
+```{r}
+data_params = data_params %>% mutate(
+                                   cost_pmat_1=net_cost_2_expanded(pmat_1,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_2=net_cost_2_expanded(pmat_2,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_3=net_cost_2_expanded(pmat_3,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_4=net_cost_2_expanded(pmat_4,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_5=net_cost_2_expanded(pmat_5,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3))
+```
+
+
+
+```{r}
+data_params = data_params %>%
+ pivot_longer(
+   cols = c(cost_pmat_1,cost_pmat_2,cost_pmat_3,cost_pmat_4,cost_pmat_5),
+   names_to = "Classification Matrix",
+   values_to = "Average Waiting Cost",
+ )
+```
+
+
+```{r}
+ggplot(data = data_params,aes(x=cost1,y=`Average Waiting Cost`,color=`Classification Matrix`)) +
+  geom_line() 
+
+```
+
+
+```{r}
+ggsave("case14.pdf")
+```
+
+
+
+```{r}
+t(as.matrix(rho*c(p1,p2,p3))) %*% as.matrix(data_params[1,]$pmat_1)[[1]] 
+t(as.matrix(rho*c(p1,p2,p3))) %*% as.matrix(data_params[1,]$pmat_5)[[1]] 
+```
+
+
+# Numerical Experiments case 7:
+
+```{r}
+tv_13=0.9
+tv_12=0.10
+tv_23=0.85
+cost3=1
+cost2=2
+cost1=seq(2.05,20,0.05)
+rho=0.6
+p1=0.2
+p2=0.3
+p3=0.5
+lambda1=p1
+lambda2=p2
+lambda3=p3
+service1=(lambda1+lambda2+lambda3)/rho
+service2=(lambda1+lambda2+lambda3)/rho
+service3=(lambda1+lambda2+lambda3)/rho
+data_params=as.data.frame(cbind(lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3,tv_13,tv_12,tv_23))
+```
+
+
+
+
+
+
+
+```{r}
+data_params <- data_params %>% mutate(pmat_1=classification_matrix_1(tv_13,tv_12,tv_23),
+                                      pmat_2=classification_matrix_2(tv_13,tv_12,tv_23),
+                                      pmat_3=classification_matrix_3(tv_13,tv_12,tv_23),
+                                      pmat_4=classification_matrix_4(tv_13,tv_12,tv_23),
+                                      pmat_5=classification_matrix_5(tv_13,tv_12,tv_23)
+)
+```
+
+
+
+```{r}
+data_params = data_params %>% mutate(
+                                   cost_pmat_1=net_cost_2_expanded(pmat_1,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_2=net_cost_2_expanded(pmat_2,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_3=net_cost_2_expanded(pmat_3,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_4=net_cost_2_expanded(pmat_4,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_5=net_cost_2_expanded(pmat_5,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3))
+```
+
+
+
+```{r}
+data_params = data_params %>%
+ pivot_longer(
+   cols = c(cost_pmat_1,cost_pmat_2,cost_pmat_3,cost_pmat_4,cost_pmat_5),
+   names_to = "Classification Matrix",
+   values_to = "Average Waiting Cost",
+ )
+```
+
+
+```{r}
+ggplot(data = data_params,aes(x=cost1,y=`Average Waiting Cost`,color=`Classification Matrix`)) +
+  geom_line() 
+
+```
+
+```{r}
+t(as.matrix(rho*c(p1,p2,p3))) %*% as.matrix(data_params[1,]$pmat_4)[[1]] 
+```
+
+
+
+
+# Numerical Experiments Case 15
+
+
+```{r}
+tv_13=0.9
+tv_12=0.10
+tv_23=0.85
+cost3=1
+cost2=2
+cost1=seq(2.05,20,0.05)
+rho=0.6
+p1=1/3
+p2=1/3
+p3=1/3
+lambda1=p1
+lambda2=p2
+lambda3=p3
+service1=(lambda1+lambda2+lambda3)/rho
+service2=(lambda1+lambda2+lambda3)/rho
+service3=(lambda1+lambda2+lambda3)/rho
+data_params=as.data.frame(cbind(lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3,tv_13,tv_12,tv_23))
+```
+
+
+
+
+
+```{r}
+data_params <- data_params %>% mutate(pmat_1=classification_matrix_1(tv_13,tv_12,tv_23),
+                                      pmat_2=classification_matrix_2(tv_13,tv_12,tv_23),
+                                      pmat_3=classification_matrix_3(tv_13,tv_12,tv_23),
+                                      pmat_4=classification_matrix_4(tv_13,tv_12,tv_23),
+                                      pmat_5=classification_matrix_5(tv_13,tv_12,tv_23)
+)
+```
+
+
+
+```{r}
+data_params = data_params %>% mutate(
+                                   cost_pmat_1=net_cost_2_expanded(pmat_1,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_2=net_cost_2_expanded(pmat_2,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_3=net_cost_2_expanded(pmat_3,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_4=net_cost_2_expanded(pmat_4,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_5=net_cost_2_expanded(pmat_5,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3))
+```
+
+
+
+```{r}
+data_params = data_params %>%
+ pivot_longer(
+   cols = c(cost_pmat_1,cost_pmat_2,cost_pmat_3,cost_pmat_4,cost_pmat_5),
+   names_to = "Classification Matrix",
+   values_to = "Average Waiting Cost",
+ )
+```
+
+
+```{r}
+ggplot(data = data_params,aes(x=cost1,y=`Average Waiting Cost`,color=`Classification Matrix`)) +
+  geom_line() 
+
+```
+
+```{r}
+t(as.matrix(rho*c(p1,p2,p3))) %*% as.matrix(data_params[1,]$pmat_4)[[1]] 
+```
+
+
+
+
+
+
+
+
+
+# Numerical Experiments case 8:
+
+```{r}
+tv_13=0.6
+tv_12=0.35
+tv_23=0.35
+cost3=1
+cost2=2
+cost1=seq(2.05,20,0.05)
+rho=0.6
+p1=0.2
+p2=0.3
+p3=0.5
+lambda1=p1
+lambda2=p2
+lambda3=p3
+service1=(lambda1+lambda2+lambda3)/rho
+service2=(lambda1+lambda2+lambda3)/rho
+service3=(lambda1+lambda2+lambda3)/rho
+data_params=as.data.frame(cbind(lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3,tv_13,tv_12,tv_23))
+```
+
+
+
+
+
+
+
+```{r}
+data_params <- data_params %>% mutate(pmat_1=classification_matrix_1(tv_13,tv_12,tv_23),
+                                      pmat_2=classification_matrix_2(tv_13,tv_12,tv_23),
+                                      pmat_3=classification_matrix_3(tv_13,tv_12,tv_23),
+                                      pmat_4=classification_matrix_4(tv_13,tv_12,tv_23),
+                                      pmat_5=classification_matrix_5(tv_13,tv_12,tv_23)
+)
+```
+
+
+
+```{r}
+data_params = data_params %>% mutate(
+                                   cost_pmat_1=net_cost_2_expanded(pmat_1,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_2=net_cost_2_expanded(pmat_2,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_3=net_cost_2_expanded(pmat_3,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_4=net_cost_2_expanded(pmat_4,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_5=net_cost_2_expanded(pmat_5,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3))
+```
+
+
+
+```{r}
+data_params = data_params %>%
+ pivot_longer(
+   cols = c(cost_pmat_1,cost_pmat_2,cost_pmat_3,cost_pmat_4,cost_pmat_5),
+   names_to = "Classification Matrix",
+   values_to = "Average Waiting Cost",
+ )
+```
+
+
+```{r}
+ggplot(data = data_params,aes(x=cost1,y=`Average Waiting Cost`,color=`Classification Matrix`)) +
+  geom_line() 
+
+```
+
+```{r}
+t(as.matrix(rho*c(p1,p2,p3))) %*% as.matrix(data_params[1,]$pmat_4)[[1]] 
+```
+
+
+
+
+
+# Numerical Experiments case 16:
+
+```{r}
+tv_13=0.6
+tv_12=0.35
+tv_23=0.35
+cost3=1
+cost2=2
+cost1=seq(2.05,20,0.05)
+rho=0.6
+p1=1/3
+p2=1/3
+p3=1/3
+lambda1=p1
+lambda2=p2
+lambda3=p3
+service1=(lambda1+lambda2+lambda3)/rho
+service2=(lambda1+lambda2+lambda3)/rho
+service3=(lambda1+lambda2+lambda3)/rho
+data_params=as.data.frame(cbind(lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3,tv_13,tv_12,tv_23))
+```
+
+
+
+
+
+
+
+```{r}
+data_params <- data_params %>% mutate(pmat_1=classification_matrix_1(tv_13,tv_12,tv_23),
+                                      pmat_2=classification_matrix_2(tv_13,tv_12,tv_23),
+                                      pmat_3=classification_matrix_3(tv_13,tv_12,tv_23),
+                                      pmat_4=classification_matrix_4(tv_13,tv_12,tv_23),
+                                      pmat_5=classification_matrix_5(tv_13,tv_12,tv_23)
+)
+```
+
+
+
+```{r}
+data_params = data_params %>% mutate(
+                                   cost_pmat_1=net_cost_2_expanded(pmat_1,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_2=net_cost_2_expanded(pmat_2,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_3=net_cost_2_expanded(pmat_3,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_4=net_cost_2_expanded(pmat_4,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3),
+                                   cost_pmat_5=net_cost_2_expanded(pmat_5,lambda1,lambda2,lambda3,service1,service2,service3,cost1,cost2,cost3))
+```
+
+
+
+```{r}
+data_params = data_params %>%
+ pivot_longer(
+   cols = c(cost_pmat_1,cost_pmat_2,cost_pmat_3,cost_pmat_4,cost_pmat_5),
+   names_to = "Classification Matrix",
+   values_to = "Average Waiting Cost",
+ )
+```
+
+
+```{r}
+ggplot(data = data_params,aes(x=cost1,y=`Average Waiting Cost`,color=`Classification Matrix`)) +
+  geom_line() 
+
+```
+
+```{r}
+t(as.matrix(rho*c(p1,p2,p3))) %*% as.matrix(data_params[1,]$pmat_4)[[1]] 
+```

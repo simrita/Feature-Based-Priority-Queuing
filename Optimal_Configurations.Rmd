@@ -1,0 +1,150 @@
+---
+title: "cost_functions_april_2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+source("../utils/header.R")
+```
+
+```{r}
+source("../utils/cost_functions.R")
+```
+
+
+
+```{r}
+beta_3=seq(0.5,1,0.01)
+beta_2=seq(0.5,1,0.01)
+service=c(1,1,1)
+r=c(0.9,1.25,2,5)
+rho=c(0.11,0.22,0.33)
+```
+
+Specifying the classification matrices for three configuration
+```{r}
+ml_algo_N_2_1_Sep_2_3=function(beta_2){
+  mat=rbind(c(beta_2,1-beta_2),c(1-beta_2,beta_2),c(1-beta_2,beta_2))
+  return(mat)
+}
+ml_algo_N_2_1_2_Sep_3=function(beta_2){
+  mat=rbind(c(beta_2,1-beta_2),c(beta_2,1-beta_2),c(1-beta_2,beta_2))
+  return(mat)
+}
+ml_algo_N_3=function(beta_3){
+  mat=rbind(c(beta_3,(1-beta_3)/2,(1-beta_3)/2),c((1-beta_3)/2,beta_3,(1-beta_3)/2),c((1-beta_3)/2,(1-beta_3)/2,beta_3))
+  return(mat)
+}
+costs=function(r){
+  if(r>1){
+  return(c(r^2,r,1))
+  }else{
+    return(c(2+r,2,1))
+  }
+}
+arrival_rates=function(rho){
+  return(rho*service)
+}
+
+minimum_cost_policy=function(beta_3,beta_2,r,rho){
+  p3=ml_algo_N_3(beta_3)
+  p2_o=ml_algo_N_2_1_2_Sep_3(beta_2)
+  p2_u=ml_algo_N_2_1_Sep_2_3(beta_2)
+  cost_p3=net_cost_2(p3,arrival_rates(rho),service,costs(r))
+  cost_p2_o=net_cost_2(p2_o,arrival_rates(rho),service,costs(r))
+  cost_p2_u=net_cost_2(p2_u,arrival_rates(rho),service,costs(r))
+  mini=min(c(cost_p3,cost_p2_o,cost_p2_u))
+  if(mini==cost_p3){
+    return("N=3")
+  }else if (mini==cost_p2_o){
+    return("N=2, Over-Prioritization of Type 2")
+  }else{
+     return("N=2, Under-Prioritization of Type 2")
+  }
+}
+minimum_cost_policy_N_2=function(beta_2,r,rho){
+  p2_o=ml_algo_N_2_1_2_Sep_3(beta_2)
+  p2_u=ml_algo_N_2_1_Sep_2_3(beta_2)
+  cost_p2_o=net_cost_2_wait(p2_o,arrival_rates(rho),service,costs(r))
+  cost_p2_u=net_cost_2_wait(p2_u,arrival_rates(rho),service,costs(r))
+  mini=min(c(cost_p2_o,cost_p2_u))
+  if (mini==cost_p2_o){
+    return("N=2, Over-Prioritization of Type 2")
+  }else{
+     return("N=2, Under-Prioritization of Type 2")
+  }
+}
+```
+
+
+
+
+```{r}
+data=expand.grid(beta_3,beta_2,r,rho)
+names(data)=c("beta_3","beta_2","r","rho")
+data=data[order(-data$rho),]
+
+data2=expand.grid(beta_2,r,rho)
+names(data2)=c("beta_2","r","rho")
+data2=data2[order(-data2$rho),]
+```
+
+```{r}
+optimal_policy2=apply(data2,1,function(x) minimum_cost_policy_N_2(x[1],x[2],x[3]))
+```
+
+
+```{r}
+optimal_policy=apply(data,1,function(x) minimum_cost_policy(x[1],x[2],x[3],x[4]))
+```
+
+```{r}
+data=cbind(data,optimal_policy)
+```
+
+
+
+
+
+
+
+```{r}
+ggplot(data,aes(x=beta_3,y=beta_2,col=optimal_policy))+
+  geom_point()+
+  theme(strip.background = element_blank(),strip.text = element_blank(),panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank())+
+  facet_wrap(~ rho+r,ncol=4)
+
+```
+```{r}
+
+```
+
+
+```{r}
+ggplot(data,aes(x=beta_3,y=beta_2,col=optimal_policy))+
+  geom_point()+
+  coord_fixed(ratio=1)+
+  theme(strip.background = element_blank(),strip.text = element_blank(),panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(), axis.title.x = element_blank(),axis.title.y = element_blank())+
+  facet_wrap(~ -rho+r,ncol=4)
+```
+
+```{r}
+ggplot(data2,aes(x=beta_2,y=0,col=optimal_policy2))+
+  geom_point()+
+  coord_fixed(ratio=1)+
+  theme(strip.background = element_blank(),strip.text = element_blank(),panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(), axis.title.x = element_blank(),axis.title.y = element_blank())+
+  facet_wrap(~ -rho+r,ncol=4)
+```
+
+
+```{r}
+ggsave("Optimal_Configuration_2_Queues.pdf")
+```
+

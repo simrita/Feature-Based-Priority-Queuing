@@ -1,0 +1,330 @@
+---
+title: "feature-based-queueing"
+author: "Simrita Singh"
+date: "2/16/2023"
+output: html_document
+---
+
+## Loading the header file and the cost functions
+
+```{r cars}
+source("../utils/header.R")
+source("../utils/cost_functions.R")
+```
+
+```{r}
+library(triangulr)
+```
+# Taking two types
+```{r}
+costs=c(4,1)
+p1=0.2
+p2=0.8
+lamda=c(p1,p2)
+rho=c(0.2,0.6)
+service=c(lamda[1]/rho[1],lamda[2]/rho[2])
+```
+## The densities of the two types
+```{r}
+  f_1=function(x){
+  val=dtri(x, min = 0.5, max = 1, mode = 1, log = FALSE)
+  return(val)
+  }
+ f_2=function(x){
+  val=dtri(x, min = 0, max = 0.5, mode = 0, log = FALSE)
+  return(val)
+ }
+ f_1=Vectorize(f_1)
+ f_2=Vectorize(f_2)
+ x_sample=runif(1000)
+ density1=f_1(x_sample)
+ density2=f_2(x_sample)
+```
+
+
+```{r}
+plot(density1~x_sample)+
+  points(density2~x_sample,col="blue")
+```
+```{r}
+pmat_beta=function(beta){
+  f11 <- function(x){(1/(1+exp(-beta[1]*x-beta[2])))*f_1(x)}
+  f12 <- function(x){(1/(1+exp(beta[1]*x+beta[2])))*f_1(x)}
+  f21 <- function(x){(1/(1+exp(-beta[1]*x-beta[2])))*f_2(x)}
+  f22 <- function(x){(1/(1+exp(beta[1]*x+beta[2])))*f_2(x)}
+  p11=integrate(f11, lower = 0, upper = 1)$value
+  p12=integrate(f12, lower = 0, upper = 1)$value
+  p21=integrate(f21, lower = 0, upper = 1)$value
+  p22=integrate(f22, lower = 0, upper = 1)$value
+  return(matrix(c(p11,p12,p21,p22),nrow=2,ncol=2,byrow=TRUE))
+}
+costs_beta=function(beta){
+  pmat=pmat_beta(beta)
+  return(as.numeric(net_cost_priority(pmat,c(1,2),lamda,service,costs)))
+}
+```
+
+
+
+
+```{r}
+opt=optim(par=c(10,0),fn=costs_beta)
+pmat_beta(opt$par)
+opt$value
+#t(c(p1,p2))%*%pmat_beta(opt$par)
+```
+
+```{r}
+net_cost_2(as.matrix(c(1,1)),lamda,service,costs)
+```
+
+```{r}
+  f_1=function(x){
+  val=dtri(x, min = 0, max = 1, mode = 1, log = FALSE)
+  return(val)
+  }
+ f_2=function(x){
+  val=dtri(x, min = 0, max = 1, mode = 0, log = FALSE)
+  return(val)
+ }
+ f_1=Vectorize(f_1)
+ f_2=Vectorize(f_2)
+ x_sample=runif(1000)
+ density1=f_1(x_sample)
+ density2=f_2(x_sample)
+```
+
+```{r}
+plot(density1~x_sample)+
+points(density2~x_sample,col="blue")
+```
+
+```{r}
+pmat_beta=function(beta){
+  f11 <- function(x){(1/(1+exp(-beta[1]*x-beta[2])))*f_1(x)}
+  f12 <- function(x){(1/(1+exp(beta[1]*x+beta[2])))*f_1(x)}
+  f21 <- function(x){(1/(1+exp(-beta[1]*x-beta[2])))*f_2(x)}
+  f22 <- function(x){(1/(1+exp(beta[1]*x+beta[2])))*f_2(x)}
+  p11=integrate(f11, lower = 0, upper = 1)$value
+  p12=integrate(f12, lower = 0, upper = 1)$value
+  p21=integrate(f21, lower = 0, upper = 1)$value
+  p22=integrate(f22, lower = 0, upper = 1)$value
+  return(matrix(c(p11,p12,p21,p22),nrow=2,ncol=2,byrow=TRUE))
+}
+costs_beta=function(beta){
+  pmat=pmat_beta(beta)
+  return(as.numeric(net_cost_priority(pmat,c(1,2),lamda,service,costs)))
+}
+```
+
+
+
+
+```{r}
+opt=optim(par=c(0,0),fn=costs_beta)
+pmat_beta(opt$par)
+opt$value
+#t(c(p1,p2))%*%pmat_beta(opt$par)
+```
+
+
+
+```{r}
+net_cost_2(as.matrix(c(1,1)),lamda,service,costs)
+```
+
+
+
+
+```{r}
+  f_1=function(x){
+  val=dtri(x, min = 0, max = 1, mode = 0.6, log = FALSE)
+  return(val)
+  }
+ f_2=function(x){
+  val=dtri(x, min = 0, max = 1, mode = 0.4, log = FALSE)
+  return(val)
+ }
+ f_1=Vectorize(f_1)
+ f_2=Vectorize(f_2)
+ x_sample=runif(1000)
+ density1=f_1(x_sample)
+ density2=f_2(x_sample)
+```
+
+
+```{r}
+plot(density1~x_sample)+
+points(density2~x_sample,col="blue")
+```
+
+```{r}
+pmat_beta=function(beta){
+  f11 <- function(x){(1/(1+exp(-beta[1]*x-beta[2])))*f_1(x)}
+  f12 <- function(x){(1/(1+exp(beta[1]*x+beta[2])))*f_1(x)}
+  f21 <- function(x){(1/(1+exp(-beta[1]*x-beta[2])))*f_2(x)}
+  f22 <- function(x){(1/(1+exp(beta[1]*x+beta[2])))*f_2(x)}
+  p11=integrate(f11, lower = 0, upper = 1)$value
+  p12=integrate(f12, lower = 0, upper = 1)$value
+  p21=integrate(f21, lower = 0, upper = 1)$value
+  p22=integrate(f22, lower = 0, upper = 1)$value
+  return(matrix(c(p11,p12,p21,p22),nrow=2,ncol=2,byrow=TRUE))
+}
+costs_beta=function(beta){
+  pmat=pmat_beta(beta)
+  return(as.numeric(net_cost_priority(pmat,c(1,2),lamda,service,costs)))
+}
+```
+
+
+
+
+```{r}
+opt=optim(par=c(0,0),fn=costs_beta)
+pmat_beta(opt$par)
+opt$value
+#t(c(p1,p2))%*%pmat_beta(opt$par)
+```
+
+
+```{r}
+net_cost_2(as.matrix(c(1,1)),lamda,service,costs)
+```
+
+## Hypothesis: For high feature-overlap, the waiting cost increases with feature-overlap
+## Suppose the matrix is [], then for any classifier q(.), the waiting cost is increasing in the
+##[],[1,0,0,1]
+## if for any classifier, the waiting cost increases with the feature densities, then the optimal
+
+c1mu1rho1(1-rho*P_11)+c2mu2rho2(1-rho*P_21)/(1-rho)(1-rho_1P11-\rho(P21))-
+/
+1-rho+rho*P_{21}
+
+
+-1+rho-rho
+
+```{r}
+
+```
+
+
+
+
+# As the feature overlap occurs, the relative gap between FIFO and multiple queues decreases. 
+```{r}
+costs=c(4,2,1)
+p1=0.2
+p2=0.3
+p3=0.5
+lamda=c(p1,p2,p3)
+rho=c(0.1,0.2,0.5)
+#service=c(sum(lamda)/rho,sum(lamda)/rho,sum(lamda)/rho)
+service=c(lamda[1]/rho[1],lamda[2]/rho[2],lamda[3]/rho[3])
+```
+
+```{r}
+pmat_beta=function(beta){
+  f_1=function(x){
+    if(as.numeric(x)>=0.5){
+   val= 0.5*dtri(x, min = 0.5, max = 1, mode = 1, log = FALSE)
+  }else{
+   val= 0.5*dtri(x, min = 0, max = 0.5, mode = 0, log = FALSE)
+  }
+  return(val)
+  }
+  f_1=Vectorize(f_1)
+  f11 <- function(x){(1/(1+exp(beta[1]*x)+exp(beta[1]*x+beta[2]*x)))*dtri(x, min = 0.5, max = 1, mode =1, log = FALSE)}
+  f12 <- function(x){(1/(1+exp(-beta[1]*x)+exp(beta[2]*x)))*dtri(x, min = 0.5, max = 1, mode =1, log = FALSE)}
+  f13 <- function(x){(1/(1+exp(-(beta[1]*x+beta[2]*x))+exp(-beta[2]*x)))*dtri(x, min = 0.5, max = 1, mode =1, log = FALSE)}
+  f21 <- function(x){(1/(1+exp(beta[1]*x)+exp(beta[1]*x+beta[2]*x)))*dtri(x, min = 0, max = 0.5, mode =0, log = FALSE)}
+  f22 <- function(x){(1/(1+exp(-beta[1]*x)+exp(beta[2]*x)))*dtri(x, min = 0, max = 0.5, mode =0, log = FALSE)}
+  f23 <- function(x){(1/(1+exp(-(beta[1]*x+beta[2]*x))+exp(-beta[2]*x)))*dtri(x, min = 0, max =0.5, mode =0, log = FALSE)}
+ # f31 <- function(x){(1/(1+exp(beta[1]*x)+exp(beta[1]*x+beta[2]*x)))*f_1(x)}
+  #f32 <- function(x){(1/(1+exp(-beta[1]*x)+exp(beta[2]*x)))*f_1(x)}
+  #f33 <- function(x){(1/(1+exp(-(beta[1]*x+beta[2]*x))+exp(-beta[2]*x)))*f_1(x)}
+  f31 <- function(x){(1/(1+exp(beta[1]*x)+exp(beta[1]*x+beta[2]*x)))}
+  f32 <- function(x){(1/(1+exp(-beta[1]*x)+exp(beta[2]*x)))}
+  f33 <- function(x){(1/(1+exp(-(beta[1]*x+beta[2]*x))+exp(-beta[2]*x)))}
+  p11=integrate(f11, lower = 0, upper = 1)$value
+  p12=integrate(f12, lower = 0, upper = 1)$value
+  p13=integrate(f13, lower = 0, upper = 1)$value
+  p21=integrate(f21, lower = 0, upper = 1)$value
+  p22=integrate(f22, lower = 0, upper = 1)$value
+  p23=integrate(f23, lower = 0, upper = 1)$value
+  p31=integrate(f31, lower = 0, upper = 1)$value
+  p32=integrate(f32, lower = 0, upper = 1)$value
+  p33=integrate(f33, lower = 0, upper = 1)$value
+  return(matrix(c(p11,p12,p13,p21,p22,p23,p31,p32,p33),nrow=3,ncol=3,byrow=TRUE))
+}
+costs_beta=function(beta){
+  pmat=pmat_beta(beta)
+  return(as.numeric(net_cost_priority(pmat,c(1,2,3),lamda,service,costs)))
+}
+```
+
+```{r}
+opt=optim(par=c(-10,-10),fn=costs_beta)
+pmat_beta(opt$par)
+opt$value
+t(c(p1,p2,p3))%*%pmat_beta(opt$par)
+```
+
+
+
+```{r}
+mat2=cbind(pmat_beta(opt$par)[,1],pmat_beta(opt$par)[,2]+pmat_beta(opt$par)[,3])
+mat2
+as.numeric(net_cost_2(mat2,lamda,service,costs))
+```
+
+
+
+```{r}
+pmat_beta_two=function(beta){
+    f_1=function(x){
+    if(as.numeric(x)>=0.5){
+   val= 0.5*dtri(x, min = 0.5, max = 1, mode = 1, log = FALSE)
+  }else{
+   val= 0.5*dtri(x, min = 0, max = 0.5, mode = 0, log = FALSE)
+  }
+  return(val)
+  }
+  f_1=Vectorize(f_1)
+  f11 <- function(x){(1/(1+exp(beta[1]*x)+exp(beta[1]*x+beta[2]*x)))*dtri(x, min = 0.5, max = 1, mode = 1, log = FALSE)}
+  f12 <- function(x){((1/(1+exp(-beta[1]*x)+exp(beta[2]*x)))+(1/(1+exp(-(beta[1]*x+beta[2]*x))+exp(-beta[2]*x))))*dtri(x, min = 0.5, max = 1, mode = 1, log = FALSE)}
+  f21 <- function(x){(1/(1+exp(beta[1]*x)+exp(beta[1]*x+beta[2]*x)))*dtri(x, min = 0, max = 0.5, mode = 0, log = FALSE)}
+  f22 <- function(x){((1/(1+exp(-beta[1]*x)+exp(beta[2]*x)))+(1/(1+exp(-(beta[1]*x+beta[2]*x))+exp(-beta[2]*x))))*dtri(x, min = 0, max = 0.5, mode = 0, log = FALSE)}
+  f31 <- function(x){(1/(1+exp(beta[1]*x)+exp(beta[1]*x+beta[2]*x)))}
+  f32 <- function(x){((1/(1+exp(-beta[1]*x)+exp(beta[2]*x)))+(1/(1+exp(-(beta[1]*x+beta[2]*x))+exp(-beta[2]*x))))}
+  p11=integrate(f11, lower = 0, upper = 1)$value
+  p12=integrate(f12, lower = 0, upper = 1)$value
+  p21=integrate(f21, lower = 0, upper = 1)$value
+  p22=integrate(f22, lower = 0, upper = 1)$value
+  p31=integrate(f31, lower = 0, upper = 1)$value
+  p32=integrate(f32, lower = 0, upper = 1)$value
+  return(matrix(c(p11,p12,p21,p22,p31,p32),nrow=3,ncol=2,byrow=TRUE))
+}
+costs_beta_two=function(beta){
+  pmat=pmat_beta_two(beta)
+  return(as.numeric(net_cost_2(pmat,lamda,service,costs)))
+}
+```
+
+```{r}
+opt2=optim(par=c(-10,-10),fn=costs_beta_two)
+pmat_beta_two(opt2$par)
+opt2$value
+t(c(p1,p2,p3))%*%pmat_beta_two(opt2$par)
+```
+
+
+```{r}
+t(c(p1,p2,p3))%*%pmat_beta_two(opt2$minimum)
+```
+
+```{r}
+pmat_beta_two(opt2$minimum)
+mat3=cbind(pmat_beta_two(opt2$minimum)[,1],0.5*pmat_beta_two(opt2$minimum)[,2],0.5*pmat_beta_two(opt2$minimum)[,2])
+net_cost_2(mat3,lamda,service,costs)
+```
+
